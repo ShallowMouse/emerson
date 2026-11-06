@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "Melville.h"
 #include "Plugins.h"
 #include "PequodNative.h"
 #include <iostream>
@@ -170,9 +171,12 @@ MainComponent::~MainComponent()
 void MainComponent::openAudio()
 {
     auto saved = settings().getXmlValue ("audio");
-    deviceManager.initialise (Rack::maxTracks + 3, Rack::maxTracks + 2, saved.get(), true);
+    // inside MELVILLE: MELVILLE's EMERSON device, with the same channels as on its own
+    const bool hosted = melville::attach (deviceManager, "emerson");
+    if (! hosted)
+        deviceManager.initialise (Rack::maxTracks + 3, Rack::maxTracks + 2, saved.get(), true);
 
-    if (saved == nullptr)
+    if (saved == nullptr && ! hosted)
     {
         // first run: Hawthorne Route if it's installed
         for (auto* type : deviceManager.getAvailableDeviceTypes())
@@ -322,7 +326,7 @@ void MainComponent::changeListenerCallback (juce::ChangeBroadcaster*)
 {
     enableAllChannels();
     routingChanged = true;
-    if (auto state = deviceManager.createStateXml())
+    if (auto state = melville::isHosted() ? nullptr : deviceManager.createStateXml())
         settings().setValue ("audio", state.get());
 }
 
@@ -450,7 +454,7 @@ void MainComponent::saveSettings()
     if (auto x = RackState::toXml (rack, session))
         settings().setValue ("rack", x.get());
     settings().setValue ("file", currentFile.getFullPathName());
-    if (auto state = deviceManager.createStateXml())
+    if (auto state = melville::isHosted() ? nullptr : deviceManager.createStateXml())
         settings().setValue ("audio", state.get());
     settings().saveIfNeeded();
     dirty = false;

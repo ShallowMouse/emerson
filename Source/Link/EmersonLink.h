@@ -22,6 +22,16 @@
 #include <atomic>
 #include <cstdint>
 
+#ifndef SHALLOWMOUSE_LINK_SCOPE
+// Inside MELVILLE (MELVILLE_HOSTED) every name gets MELVILLE's own prefix, so a standalone
+// copy of the program running at the same time keeps to its own memory.
+#if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+ #define SHALLOWMOUSE_LINK_SCOPE L"Melville."
+#else
+ #define SHALLOWMOUSE_LINK_SCOPE L""
+#endif
+#endif
+
 namespace emerson::link
 {
     constexpr std::uint32_t magic   = 0x454D4C31;   // "EML1"
@@ -40,8 +50,8 @@ namespace emerson::link
     constexpr int ringMask   = ringFrames - 1;
     constexpr int maxBlock   = 4096;
 
-    constexpr const wchar_t* mappingName = L"Local\\EmersonLinkV1";
-    constexpr const wchar_t* tickName    = L"Local\\EmersonLinkTickV1";
+    constexpr const wchar_t* mappingName = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"EmersonLinkV1";
+    constexpr const wchar_t* tickName    = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"EmersonLinkTickV1";
 
     struct Shared
     {
@@ -82,7 +92,7 @@ namespace emerson::directout
     constexpr std::uint32_t magic   = 0x454D4431;   // "EMD1"
     constexpr std::uint32_t version = 1;
     constexpr int maxTracks = 96;
-    constexpr const wchar_t* mappingName = L"Local\\EmersonDirectOutV1";
+    constexpr const wchar_t* mappingName = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"EmersonDirectOutV1";
 
     struct Patch
     {

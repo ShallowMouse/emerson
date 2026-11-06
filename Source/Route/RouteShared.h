@@ -17,6 +17,16 @@
 #include <atomic>
 #include <cstdint>
 
+#ifndef SHALLOWMOUSE_LINK_SCOPE
+// Inside MELVILLE (MELVILLE_HOSTED) every name gets MELVILLE's own prefix, so a standalone
+// copy of the program running at the same time keeps to its own memory.
+#if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+ #define SHALLOWMOUSE_LINK_SCOPE L"Melville."
+#else
+ #define SHALLOWMOUSE_LINK_SCOPE L""
+#endif
+#endif
+
 namespace hawthorne::route
 {
     // v3: the channels follow the reel's track count (numTracks); the other program gets a
@@ -39,8 +49,8 @@ namespace hawthorne::route
     constexpr int ringFrames = 1 << 15;             // 32768 frames per channel (power of two)
     constexpr int ringMask   = ringFrames - 1;
 
-    constexpr const wchar_t* mappingName = L"Local\\HawthorneRouteV3";
-    constexpr const wchar_t* tickName    = L"Local\\HawthorneRouteTickV3";
+    constexpr const wchar_t* mappingName = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"HawthorneRouteV3";
+    constexpr const wchar_t* tickName    = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"HawthorneRouteTickV3";
 
     struct Shared
     {
@@ -73,7 +83,7 @@ namespace hawthorne::route
     constexpr std::uint32_t infoMagic   = 0x48524931;   // "HRI1"
     constexpr std::uint32_t infoVersion = 1;
     constexpr int infoNameBytes = 32;                   // UTF-8, nul-terminated
-    constexpr const wchar_t* infoMappingName = L"Local\\HawthorneRouteInfoV1";
+    constexpr const wchar_t* infoMappingName = L"Local\\" SHALLOWMOUSE_LINK_SCOPE L"HawthorneRouteInfoV1";
 
     struct Info
     {

@@ -1,0 +1,7 @@
+build/
+dist/
+portable/
+*.user
+.vs/
+build-*/
+pequod-host/

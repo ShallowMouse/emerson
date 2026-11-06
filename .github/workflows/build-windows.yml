@@ -1,0 +1,123 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+    paths-ignore: [ 'docs/**', '**.md' ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      # Every build gets its own version; EMERSON offers it as an update when it's newer than what's installed.
+      EMERSON_VERSION: 1.0.${{ github.run_number }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The PEQUOD plugins run on the same engine as PEQUOD Host: its Rust source and the C++ that drives it
+      - name: Get PEQUOD Host (for the PEQUOD engine)
+        uses: actions/checkout@v4
+        with:
+          repository: ShallowMouse/PEQUOD-HOST
+          path: pequod-host
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pequod-host/engine
+
+      - name: Build the PEQUOD engine
+        shell: pwsh
+        env:
+          # the same static C runtime as EMERSON (CMAKE_MSVC_RUNTIME_LIBRARY)
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: |
+          rustup default stable
+          # cargo rustc so the engine crate itself is rebuilt and reports the system libraries it needs
+          cargo rustc --release -p pequod_engine --lib --target x86_64-pc-windows-msvc --manifest-path pequod-host/engine/Cargo.toml -- --print native-static-libs *>&1 | Tee-Object -FilePath engine.log
+          if ($LASTEXITCODE -ne 0) {
+            $msg = (Select-String -Path engine.log -Pattern "error" | Select-Object -First 60 | ForEach-Object { $_.Line }) -join "%0A"; Write-Output "::error title=engine::$msg"
+            exit 1
+          }
+          $lib = "pequod-host/engine/target/x86_64-pc-windows-msvc/release/pequod_engine.lib"
+          Get-ChildItem $lib
+          $libs = Select-String -Path engine.log -Pattern "native-static-libs: (.*)" | Select-Object -Last 1
+          if ($libs) { Set-Content -Path "$lib.libs" -Value $libs.Matches[0].Groups[1].Value; Get-Content "$lib.libs" }
+          # import libraries the windows-rs crates ship (windows.0.52.0.lib etc.), next to the engine for the linker
+          $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
+          $reg = Join-Path $cargoHome "registry\src"
+          Get-ChildItem $reg -Recurse -Filter "*.lib" | Where-Object { $_.FullName -match "windows_x86_64_msvc-[^\\]+\\lib\\" } | ForEach-Object { Copy-Item $_.FullName (Split-Path $lib) -Force; $_.Name }
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 "-DEMERSON_VERSION=$env:EMERSON_VERSION" -DEMERSON_BUILD_TESTS=ON "-DPEQUOD_HOST_DIR=$PWD/pequod-host" *>&1 | Tee-Object -FilePath configure.log
+          if ($LASTEXITCODE -ne 0) {
+            $msg = (Get-Content configure.log -Tail 60) -join "%0A"; Write-Output "::error title=configure::$msg"
+            exit 1
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel -- /v:minimal *>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            $msg = (Select-String -Path build.log -Pattern "error" | Select-Object -First 60 | ForEach-Object { $_.Line }) -join "%0A"; Write-Output "::error title=build::$msg"
+            exit 1
+          }
+
+      - name: Engine tests (must pass to ship)
+        shell: pwsh
+        run: |
+          & "build/EmersonTests_artefacts/Release/EmersonTests.exe" *>&1 | Tee-Object -FilePath tests.log
+          $code = $LASTEXITCODE
+          Select-String -Path tests.log -Pattern "FAIL" | ForEach-Object { Write-Output "::error title=test::$($_.Line)" }
+          exit $code
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist, portable | Out-Null
+          Copy-Item "build/Emerson_artefacts/Release/EMERSON.exe" portable/
+          Copy-Item README.md portable/
+          Copy-Item Resources/Fonts/*.txt portable/
+          Compress-Archive -Path portable/* -DestinationPath "dist/EMERSON-$env:EMERSON_VERSION-portable.zip"
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=$env:EMERSON_VERSION" Installer\EMERSON.iss *>&1 | Tee-Object -FilePath iscc.log
+          if ($LASTEXITCODE -ne 0) {
+            $msg = (Get-Content iscc.log -Tail 40) -join "%0A"; Write-Output "::error title=installer::$msg"
+            exit 1
+          }
+          Get-ChildItem dist
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: EMERSON-Windows
+          path: dist/
+
+      - name: Publish update
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if (-not $env:GH_TOKEN) {
+            Write-Output "::warning title=updates::Not published - add the RELEASES_TOKEN secret (see Installer/README.md)"
+            exit 0
+          }
+          $notes = git log -1 --pretty=%s
+          $notes | Out-File -Encoding utf8 notes.md
+          gh release create "v$env:EMERSON_VERSION" --repo ShallowMouse/Emerson-Releases `
+            --title "EMERSON $env:EMERSON_VERSION" --notes-file notes.md `
+            "dist/EMERSON-Setup-$env:EMERSON_VERSION.exe" "dist/EMERSON-$env:EMERSON_VERSION-portable.zip"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=updates::Publishing the release failed"; exit 1 }
+          Write-Output "::notice title=updates::Published EMERSON $env:EMERSON_VERSION"

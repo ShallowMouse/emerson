@@ -5,7 +5,7 @@
 
 //==============================================================================
 /** EMERSON style: the PEQUOD family layout and fonts (Courier headings / Roboto body), with its own
-    patina green on charcoal. ("mustard" names the accent colour throughout the code, as in its siblings.) */
+    cream on charcoal, like an old rack faceplate. ("mustard" names the accent colour throughout the code, as in its siblings.) */
 namespace Pequod
 {
     namespace Colours
@@ -16,8 +16,8 @@ namespace Pequod
         const juce::Colour well      { 0xff151515 };
         const juce::Colour rail      { 0xff101010 };
         const juce::Colour line      { 0xff3a3a3a };
-        const juce::Colour mustard   { 0xff8fc7a3 };     // patina green accent
-        const juce::Colour mustardLo { 0xff3f6b52 };
+        const juce::Colour mustard   { 0xffe6d8b0 };     // cream accent
+        const juce::Colour mustardLo { 0xff6b6352 };
         const juce::Colour text      { 0xffede6d6 };
         const juce::Colour textDim   { 0xff8f8a80 };
         const juce::Colour danger    { 0xffc0503a };

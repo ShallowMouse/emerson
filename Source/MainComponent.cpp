@@ -166,6 +166,9 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    melville::detach (deviceManager);     // (and out of MELVILLE's session)
+   #endif
     stopTimer();
     saveSettings();
     rackPanel.closeEditor();
@@ -183,6 +186,11 @@ void MainComponent::openAudio()
     auto saved = settings().getXmlValue ("audio");
     // inside MELVILLE: MELVILLE's EMERSON device, with the same channels as on its own
     const bool hosted = melville::attach (deviceManager, "emerson");
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    melville::addToSession (deviceManager, {
+        [this] { return RackState::toXml (rack, session); },
+        [this] (const juce::XmlElement& x) { loadRack (x, "the session"); } });
+   #endif
     if (! hosted)
         deviceManager.initialise (Rack::maxTracks + 3, Rack::maxTracks + 2, saved.get(), true);
 

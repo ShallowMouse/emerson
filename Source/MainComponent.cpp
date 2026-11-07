@@ -95,6 +95,15 @@ MainComponent::MainComponent()
     toWhitmanButton.setConnectedEdges (juce::Button::ConnectedOnRight);
     directButton.setConnectedEdges (juce::Button::ConnectedOnLeft);
     (session.output == Session::Output::directOuts ? directButton : toWhitmanButton).setToggleState (true, juce::dontSendNotification);
+    // Inside MELVILLE there is one set of track outputs: its patchbay sends them to WHITMAN, to
+    // the interface for a hardware desk, or both. So no TO WHITMAN / DIRECT OUTS switch there.
+    if (melville::isHosted())
+    {
+        session.output = Session::Output::whitman;
+        outputMode = (int) Session::Output::whitman;
+        toWhitmanButton.setVisible (false);
+        directButton.setVisible (false);
+    }
     toWhitmanButton.onClick = [this] { if (toWhitmanButton.getToggleState()) setOutput (Session::Output::whitman); };
     directButton.onClick    = [this] { if (directButton.getToggleState()) setOutput (Session::Output::directOuts); };
 
@@ -350,6 +359,7 @@ void MainComponent::rackChanged()
 
 void MainComponent::setOutput (Session::Output o)
 {
+    if (melville::isHosted()) o = Session::Output::whitman;   // (MELVILLE's patchbay does direct outs)
     session.output = o;
     outputMode = (int) o;
     publishDirectOuts();
@@ -465,6 +475,7 @@ void MainComponent::loadRack (const juce::XmlElement& x, const juce::String& wha
     rackPanel.closeEditor();
     juce::StringArray missing;
     RackState::fromXml (x, rack, session, loader(), missing);
+    if (melville::isHosted()) session.output = Session::Output::whitman;
     outputMode = (int) session.output;
     (session.output == Session::Output::directOuts ? directButton : toWhitmanButton).setToggleState (true, juce::dontSendNotification);
     publishDirectOuts();
@@ -676,6 +687,8 @@ juce::String MainComponent::hintLine() const
         return "Hawthorne Route is the ASIO driver Hawthorne installs (Hawthorne > SETTINGS)";
     if (session.output == Session::Output::directOuts)
         return "Click a track's OUT box to pick its interface output; Hawthorne plays it out there (needs a Hawthorne with EMERSON direct outs)";
+    if (melville::isHosted())
+        return "MELVILLE's PATCHBAY sends the tracks to WHITMAN, the interface or both. Hawthorne's master L / R inputs: ROUTE master L / R";
     if (! link.isWhitmanConnected())
         return "In WHITMAN: SETTINGS > device type EMERSON Link, device EMERSON. Hawthorne's master L / R inputs: ROUTE master L / R";
     return "Hawthorne's ROUTING: master L / R inputs from ROUTE master L / R, and each track's MIX off";
@@ -712,7 +725,8 @@ void MainComponent::paint (juce::Graphics& g)
 
     g.setFont (Pequod::heading (11.0f));
     g.setColour (Pequod::Colours::textDim);
-    g.drawText ("OUTPUT", outputLabelArea, juce::Justification::centredRight);
+    if (toWhitmanButton.isVisible())
+        g.drawText ("OUTPUT", outputLabelArea, juce::Justification::centredRight);
 
     // the track list's frame
     g.setColour (Pequod::Colours::rail);

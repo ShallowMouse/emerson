@@ -103,6 +103,7 @@ MainComponent::MainComponent()
         outputMode = (int) Session::Output::whitman;
         toWhitmanButton.setVisible (false);
         directButton.setVisible (false);
+        audioButton.setVisible (false);     // (MELVILLE's INTERFACE picks the device)
     }
     toWhitmanButton.onClick = [this] { if (toWhitmanButton.getToggleState()) setOutput (Session::Output::whitman); };
     directButton.onClick    = [this] { if (directButton.getToggleState()) setOutput (Session::Output::directOuts); };
@@ -750,6 +751,7 @@ void MainComponent::resized()
     bar.removeFromLeft (200);
     for (auto* b : { &audioButton, &saveButton, &openButton, &resetButton })
     {
+        if (! b->isVisible()) continue;
         b->setBounds (bar.removeFromRight (76));
         bar.removeFromRight (6);
     }

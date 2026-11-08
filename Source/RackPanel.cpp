@@ -5,7 +5,12 @@
 namespace emerson
 {
 
-static constexpr int unitH = 62, unitsW = 300;
+// Each effect is drawn as a 1U, 19-inch rack unit: 482.6 mm wide (ears included) by 44.45 mm high,
+// scaled to the column. unitGap is the space between units, outside the panels.
+static constexpr double rackUnitRatio = 44.45 / 482.6;
+static constexpr int unitGap = 2;
+static int unitsWidthFor (int panelWidth)  { return juce::jlimit (380, 560, juce::roundToInt (panelWidth * 0.42)); }
+static int unitHeightFor (int unitWidth)   { return juce::roundToInt (unitWidth * rackUnitRatio); }
 
 //==============================================================================
 class RackPanel::Unit : public juce::Component
@@ -36,13 +41,14 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto r = getLocalBounds().toFloat().reduced (0, 3);
+        auto r = getLocalBounds().toFloat();
         const bool sel = owner.selectedUid == slot.uid;
         const bool on = ! slot.bypassed.load() && ! owner.chain().bypassAll.load();
 
         g.setColour (Pequod::Colours::rail);
         g.fillRoundedRectangle (r, 3.0f);
-        auto face = r.reduced (12, 0);
+        const float ear = r.getWidth() * (15.88f / 482.6f);
+        auto face = r.reduced (ear, 0);
         g.setGradientFill (juce::ColourGradient (colour.withMultipliedBrightness (sel ? 0.85f : 0.6f), face.getX(), face.getY(),
                                                  colour.withMultipliedBrightness (sel ? 0.55f : 0.35f), face.getX(), face.getBottom(), false));
         g.fillRect (face);
@@ -51,18 +57,22 @@ public:
             g.setColour (Pequod::Colours::mustard);
             g.drawRect (face, 2.0f);
         }
-        for (float x : { r.getX() + 6.0f, r.getRight() - 6.0f })
+        // the rack holes, 31.75 mm apart, centred on the unit
+        const float hole = r.getHeight() * (31.75f / 44.45f) * 0.5f, screw = juce::jmax (2.0f, r.getHeight() * 0.06f);
+        for (float x : { r.getX() + ear * 0.5f, r.getRight() - ear * 0.5f })
         {
-            Pequod::drawScrew (g, { x, r.getY() + 10.0f }, 3.0f);
-            Pequod::drawScrew (g, { x, r.getBottom() - 10.0f }, 3.0f);
+            Pequod::drawScrew (g, { x, r.getCentreY() - hole }, screw);
+            Pequod::drawScrew (g, { x, r.getCentreY() + hole }, screw);
         }
 
-        auto text = face.toNearestInt().reduced (38, 6);
-        text.removeFromRight (78);
-        g.setFont (Pequod::heading (15.0f));
+        auto text = face.toNearestInt().reduced (0, 2);
+        text.removeFromLeft (juce::roundToInt (r.getHeight() * 0.8f));
+        text.removeFromRight (juce::roundToInt (r.getHeight() * 1.6f));
+        const float h = (float) r.getHeight();
+        g.setFont (Pequod::heading (juce::jlimit (11.0f, 15.0f, h * 0.34f)));
         g.setColour (on ? Pequod::Colours::text : Pequod::Colours::text.withAlpha (0.45f));
-        g.drawText (slot.name.toUpperCase(), text.removeFromTop (text.getHeight() / 2 + 2), juce::Justification::bottomLeft, true);
-        g.setFont (Pequod::body (11.0f));
+        g.drawText (slot.name.toUpperCase(), text.removeFromTop (text.getHeight() / 2 + 1), juce::Justification::bottomLeft, true);
+        g.setFont (Pequod::body (juce::jlimit (9.0f, 11.0f, h * 0.25f)));
         g.setColour (Pequod::Colours::text.withAlpha (on ? 0.7f : 0.35f));
         auto sub = slot.collection;
         if (const int lat = slot.preparedLatency; lat > 0)
@@ -72,14 +82,18 @@ public:
 
     void resized() override
     {
-        auto r = getLocalBounds().reduced (12, 3);
-        power.setBounds (r.removeFromLeft (34).withSizeKeepingCentre (24, 24).translated (4, 0));
-        auto right = r.removeFromRight (76).reduced (4, 8);
-        remove.setBounds (right.removeFromRight (22));
-        right.removeFromRight (3);
-        auto col = right.removeFromRight (22);
-        up.setBounds (col.removeFromTop (col.getHeight() / 2));
-        down.setBounds (col);
+        const int h = getHeight(), ear = juce::roundToInt (getWidth() * (15.88 / 482.6));
+        auto r = getLocalBounds().reduced (ear, 0);
+        const int knob = juce::jmax (16, juce::roundToInt (h * 0.58));
+        power.setBounds (r.removeFromLeft (juce::roundToInt (h * 0.8)).withSizeKeepingCentre (knob, knob));
+        // move and remove: small keys at the right of the face
+        auto right = r.removeFromRight (juce::roundToInt (h * 1.6)).reduced (3, juce::jmax (2, h / 10));
+        const int key = juce::jmin (right.getHeight(), juce::jmax (14, right.getWidth() / 3 - 2));
+        remove.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
+        right.removeFromRight (2);
+        down.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
+        right.removeFromRight (2);
+        up.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
     }
 
     void mouseDown (const juce::MouseEvent& e) override
@@ -124,7 +138,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto r = getLocalBounds().toFloat().reduced (12, 6);
+        auto r = getLocalBounds().toFloat().reduced (getWidth() * (15.88f / 482.6f), 1.0f);
         g.setColour (isMouseOver() ? Pequod::Colours::mustardLo.withAlpha (0.5f) : Pequod::Colours::well);
         g.fillRoundedRectangle (r, 3.0f);
         g.setColour (Pequod::Colours::mustardLo);
@@ -495,15 +509,18 @@ void RackPanel::resized()
     level.setBounds (bar.removeFromLeft (juce::jmin (300, bar.getWidth() - 10)));
 
     r.removeFromTop (2);
+    const int unitsW = unitsWidthFor (r.getWidth());
     unitView.setBounds (r.removeFromLeft (unitsW));
     r.removeFromLeft (8);
     editorArea = r.reduced (0, 0).withTrimmedBottom (8).withTrimmedRight (8);
 
-    const int w = unitsW - (((int) unitRows.size() + 1) * unitH > unitView.getHeight() ? unitView.getScrollBarThickness() : 0);
+    const int fullH = unitHeightFor (unitsW) + unitGap;
+    const int w = unitsW - (((int) unitRows.size() + 1) * fullH > unitView.getHeight() ? unitView.getScrollBarThickness() : 0);
+    const int unitH = unitHeightFor (w);
     int y = 6;
-    for (auto* u : unitRows) { u->setBounds (0, y, w, unitH); y += unitH; }
-    addButton->setBounds (0, y, w, 52);
-    y += 58;
+    for (auto* u : unitRows) { u->setBounds (0, y, w, unitH); y += unitH + unitGap; }
+    addButton->setBounds (0, y, w, unitH);     // an empty 1U space
+    y += unitH + 6;
     units.setSize (w, juce::jmax (y, unitView.getHeight()));
     layoutEditor();
 }

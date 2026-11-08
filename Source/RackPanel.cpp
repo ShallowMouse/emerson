@@ -11,7 +11,7 @@ namespace emerson
 // units (1U = 44.45 mm of a 482.6 mm wide panel, ears included), the space above and below the
 // panel's controls a blank plate.
 static constexpr double rackWidthMm = 482.6, unitMm = 44.45, earMm = 15.88, holeSpanMm = 31.75;
-static constexpr int maxRackW = 900, unitGap = 1;
+static constexpr int unitGap = 1;
 static int earFor (int width)  { return juce::roundToInt (width * (earMm / rackWidthMm)); }
 static double unitFor (int width) { return width * (unitMm / rackWidthMm); }
 
@@ -526,7 +526,7 @@ void RackPanel::resized()
 
     r.removeFromTop (2);
     r = r.withTrimmedBottom (8);
-    const int rackW = juce::jmin (maxRackW, r.getWidth() - 16);
+    const int rackW = juce::jmax (200, r.getWidth() - 16 - unitView.getScrollBarThickness());   // (the rack fills the width: no gaps either side)
     unitView.setBounds (r.withSizeKeepingCentre (rackW + unitView.getScrollBarThickness(), r.getHeight()).withY (r.getY()));
 
     const int w = rackW;

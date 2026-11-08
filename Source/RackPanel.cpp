@@ -5,15 +5,21 @@
 namespace emerson
 {
 
-// Each effect is drawn as a 1U, 19-inch rack unit: 482.6 mm wide (ears included) by 44.45 mm high,
-// scaled to the column. unitGap is the space between units, outside the panels.
-static constexpr double rackUnitRatio = 44.45 / 482.6;
-static constexpr int unitGap = 2;
-static int unitsWidthFor (int panelWidth)  { return juce::jlimit (380, 560, juce::roundToInt (panelWidth * 0.42)); }
-static int unitHeightFor (int unitWidth)   { return juce::roundToInt (unitWidth * rackUnitRatio); }
+// The chain is drawn as a 19-inch rack, top to bottom in signal order. Every effect's own panel is
+// mounted in it: scaled to the rack's width between the ears and given a whole number of rack
+// units (1U = 44.45 mm of a 482.6 mm wide panel, ears included), the space above and below the
+// panel's controls a blank plate.
+static constexpr double rackWidthMm = 482.6, unitMm = 44.45, earMm = 15.88, holeSpanMm = 31.75;
+static constexpr int maxRackW = 900, unitGap = 1;
+static int earFor (int width)  { return juce::roundToInt (width * (earMm / rackWidthMm)); }
+static double unitFor (int width) { return width * (unitMm / rackWidthMm); }
+
+// PEQUOD's own panels sit on a wood surround (14 px) with a rounded plate: in the rack only the plate
+// shows, square to the ears
+static constexpr int pequodCrop = 18;
 
 //==============================================================================
-class RackPanel::Unit : public juce::Component
+class RackPanel::Unit : public juce::Component, private juce::ComponentListener
 {
 public:
     Unit (RackPanel& o, Slot& s) : owner (o), slot (s), colour (Plugins::colourOf (s.identifier))
@@ -29,98 +35,159 @@ public:
             b->setColour (juce::TextButton::buttonColourId, Pequod::Colours::well);
             addAndMakeVisible (b);
         }
-        up.setTooltip ("Move up (earlier in the chain)");
-        down.setTooltip ("Move down (later in the chain)");
-        remove.setTooltip ("Take it out of the chain");
+        up.setTooltip ("Move up the rack (earlier in the chain)");
+        down.setTooltip ("Move down the rack (later in the chain)");
+        remove.setTooltip ("Take it out of the rack");
         up.onClick     = [this] { owner.moveSlot (slot.uid, -1); };
         down.onClick   = [this] { owner.moveSlot (slot.uid, +1); };
         remove.onClick = [this] { owner.removeSlot (slot.uid); };
+
+        face.setInterceptsMouseClicks (false, true);
+        addAndMakeVisible (face);
+        if (slot.processor != nullptr)
+            if (auto* e = slot.processor->createEditorAndMakeActive())
+            {
+                editor.reset (e);
+                native = Plugins::isNative (slot.identifier);
+                face.addAndMakeVisible (*editor);
+                editor->addComponentListener (this);
+            }
+    }
+
+    ~Unit() override
+    {
+        if (editor != nullptr)
+        {
+            editor->removeComponentListener (this);
+            if (auto* p = editor->getAudioProcessor()) p->editorBeingDeleted (editor.get());
+            editor = nullptr;
+        }
     }
 
     int uid() const { return slot.uid; }
 
+    /** The panel's controls, in its own pixels (PEQUOD's without the wood). */
+    juce::Rectangle<int> content() const
+    {
+        if (editor == nullptr) return {};
+        auto r = juce::Rectangle<int> (editor->getWidth(), editor->getHeight());
+        return native ? r.reduced (pequodCrop) : r;
+    }
+
+    /** Height in the rack at this width: a whole number of units. */
+    int heightFor (int width) const
+    {
+        const double u = unitFor (width);
+        const int faceW = width - 2 * earFor (width);
+        int units = 1;
+        if (auto c = content(); ! c.isEmpty())
+        {
+            const double k = native ? (double) faceW / c.getWidth() : 1.0;   // a VST3's window can't be scaled
+            units = juce::jmax (1, (int) std::ceil (c.getHeight() * k / u - 0.02));
+        }
+        return juce::roundToInt (u * units);
+    }
+
     void paint (juce::Graphics& g) override
     {
         auto r = getLocalBounds().toFloat();
-        const bool sel = owner.selectedUid == slot.uid;
-        const bool on = ! slot.bypassed.load() && ! owner.chain().bypassAll.load();
-
-        g.setColour (Pequod::Colours::rail);
-        g.fillRoundedRectangle (r, 3.0f);
-        const float ear = r.getWidth() * (15.88f / 482.6f);
-        auto face = r.reduced (ear, 0);
-        g.setGradientFill (juce::ColourGradient (colour.withMultipliedBrightness (sel ? 0.85f : 0.6f), face.getX(), face.getY(),
-                                                 colour.withMultipliedBrightness (sel ? 0.55f : 0.35f), face.getX(), face.getBottom(), false));
-        g.fillRect (face);
-        if (sel)
-        {
-            g.setColour (Pequod::Colours::mustard);
-            g.drawRect (face, 2.0f);
-        }
-        // the rack holes, 31.75 mm apart, centred on the unit
-        const float hole = r.getHeight() * (31.75f / 44.45f) * 0.5f, screw = juce::jmax (2.0f, r.getHeight() * 0.06f);
+        const float ear = (float) earFor (getWidth());
+        // the ears: the panel's own metal, holes on the rails at each end unit
+        g.setColour (juce::Colour (0xff2a2b2e));
+        g.fillRect (r);
+        g.setColour (juce::Colour (0xff3a3b3f));
+        g.drawRect (r, 1.0f);
+        const float u = (float) unitFor (getWidth());
+        const int units = juce::jmax (1, juce::roundToInt (r.getHeight() / u));
+        const float half = u * (float) (holeSpanMm / unitMm) * 0.5f, screw = juce::jmax (2.5f, u * 0.055f);
         for (float x : { r.getX() + ear * 0.5f, r.getRight() - ear * 0.5f })
-        {
-            Pequod::drawScrew (g, { x, r.getCentreY() - hole }, screw);
-            Pequod::drawScrew (g, { x, r.getCentreY() + hole }, screw);
-        }
+            for (int k : { 0, units - 1 })
+            {
+                const float cy = r.getY() + u * ((float) k + 0.5f);
+                Pequod::drawScrew (g, { x, cy - half }, screw);
+                if (units == 1 || k == units - 1) Pequod::drawScrew (g, { x, cy + half }, screw);
+            }
 
-        auto text = face.toNearestInt().reduced (0, 2);
-        text.removeFromLeft (juce::roundToInt (r.getHeight() * 0.8f));
-        text.removeFromRight (juce::roundToInt (r.getHeight() * 1.6f));
-        const float h = (float) r.getHeight();
-        g.setFont (Pequod::heading (juce::jlimit (11.0f, 15.0f, h * 0.34f)));
-        g.setColour (on ? Pequod::Colours::text : Pequod::Colours::text.withAlpha (0.45f));
-        g.drawText (slot.name.toUpperCase(), text.removeFromTop (text.getHeight() / 2 + 1), juce::Justification::bottomLeft, true);
-        g.setFont (Pequod::body (juce::jlimit (9.0f, 11.0f, h * 0.25f)));
-        g.setColour (Pequod::Colours::text.withAlpha (on ? 0.7f : 0.35f));
-        auto sub = slot.collection;
-        if (const int lat = slot.preparedLatency; lat > 0)
-            sub << "   " << juce::String (1000.0 * lat / juce::jmax (1.0, owner.rack.getSampleRate()), 1) << " ms";
-        g.drawText (sub, text, juce::Justification::topLeft, true);
+        // the face: a blank plate where the panel doesn't reach
+        auto f = face.getBounds().toFloat();
+        g.setGradientFill (juce::ColourGradient (colour.withMultipliedBrightness (0.5f), f.getX(), f.getY(),
+                                                 colour.withMultipliedBrightness (0.3f), f.getX(), f.getBottom(), false));
+        g.fillRect (f);
+        if (editor == nullptr)
+        {
+            auto t = f.toNearestInt().reduced (12, 4);
+            g.setFont (Pequod::heading (juce::jlimit (12.0f, 18.0f, f.getHeight() * 0.3f)));
+            g.setColour (Pequod::Colours::text);
+            g.drawText (slot.name.toUpperCase(), t, juce::Justification::centredLeft, true);
+            g.setFont (Pequod::body (11.0f));
+            g.setColour (Pequod::Colours::text.withAlpha (0.6f));
+            g.drawText (slot.collection, t, juce::Justification::centredRight, true);
+        }
+    }
+
+    void paintOverChildren (juce::Graphics& g) override
+    {
+        // bypassed: the face goes dark, like a unit switched off
+        if (slot.bypassed.load() || owner.chain().bypassAll.load())
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.5f));
+            g.fillRect (face.getBounds());
+        }
     }
 
     void resized() override
     {
-        const int h = getHeight(), ear = juce::roundToInt (getWidth() * (15.88 / 482.6));
-        auto r = getLocalBounds().reduced (ear, 0);
-        const int knob = juce::jmax (16, juce::roundToInt (h * 0.58));
-        power.setBounds (r.removeFromLeft (juce::roundToInt (h * 0.8)).withSizeKeepingCentre (knob, knob));
-        // move and remove: small keys at the right of the face
-        auto right = r.removeFromRight (juce::roundToInt (h * 1.6)).reduced (3, juce::jmax (2, h / 10));
-        const int key = juce::jmin (right.getHeight(), juce::jmax (14, right.getWidth() / 3 - 2));
-        remove.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
-        right.removeFromRight (2);
-        down.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
-        right.removeFromRight (2);
-        up.setBounds (right.removeFromRight (key).withSizeKeepingCentre (key, key));
+        const int ear = earFor (getWidth());
+        auto r = getLocalBounds();
+        face.setBounds (r.reduced (ear, 0));
+
+        // power and remove on the left ear, move up / down on the right
+        const int key = juce::jlimit (12, 24, ear - 6);
+        auto left = r.removeFromLeft (ear), right = r.removeFromRight (ear);
+        const int mid = juce::roundToInt (unitFor (getWidth()) * 0.5);   // the middle of the top unit
+        power.setBounds (juce::Rectangle<int> (key, key).withCentre ({ left.getCentreX(), mid - key / 2 - 2 }));
+        remove.setBounds (juce::Rectangle<int> (key, key).withCentre ({ left.getCentreX(), mid + key / 2 + 2 }));
+        up.setBounds   (juce::Rectangle<int> (key, key).withCentre ({ right.getCentreX(), mid - key / 2 - 2 }));
+        down.setBounds (juce::Rectangle<int> (key, key).withCentre ({ right.getCentreX(), mid + key / 2 + 2 }));
+
+        if (editor != nullptr)
+        {
+            const auto c = content();
+            const float k = native ? (float) face.getWidth() / (float) juce::jmax (1, c.getWidth()) : 1.0f;
+            const float x = native ? 0.0f : ((float) face.getWidth() - (float) c.getWidth()) * 0.5f;
+            const float y = ((float) face.getHeight() - (float) c.getHeight() * k) * 0.5f;
+            editor->setTopLeftPosition (0, 0);
+            editor->setTransform (juce::AffineTransform::translation ((float) -c.getX(), (float) -c.getY()).scaled (k).translated (x, y));
+        }
     }
 
     void mouseDown (const juce::MouseEvent& e) override
     {
-        owner.select (slot.uid);
-        if (e.mods.isPopupMenu())
+        if (! e.mods.isPopupMenu()) return;
+        juce::PopupMenu m;
+        m.addItem (1, "Insert an effect above this");
+        m.addItem (2, "Insert an effect below this");
+        m.addSeparator();
+        m.addItem (3, slot.bypassed.load() ? "Switch on" : "Bypass");
+        m.addItem (4, "Remove");
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [this, uid = slot.uid] (int r)
         {
-            juce::PopupMenu m;
-            m.addItem (1, "Insert an effect before this");
-            m.addItem (2, "Insert an effect after this");
-            m.addSeparator();
-            m.addItem (3, slot.bypassed.load() ? "Switch on" : "Bypass");
-            m.addItem (4, "Remove");
-            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [this, uid = slot.uid] (int r)
-            {
-                auto& c = owner.chain();
-                int pos = 0;
-                for (int i = 0; i < (int) c.slots.size(); ++i) if (c.slots[(size_t) i]->uid == uid) pos = i;
-                if (r == 1) owner.showAddMenu (pos);
-                if (r == 2) owner.showAddMenu (pos + 1);
-                if (r == 3) { slot.bypassed = ! slot.bypassed.load(); power.setToggleState (! slot.bypassed.load(), juce::dontSendNotification); repaint(); owner.changed(); }
-                if (r == 4) owner.removeSlot (uid);
-            });
-        }
+            auto& c = owner.chain();
+            int pos = 0;
+            for (int i = 0; i < (int) c.slots.size(); ++i) if (c.slots[(size_t) i]->uid == uid) pos = i;
+            if (r == 1) owner.showAddMenu (pos);
+            if (r == 2) owner.showAddMenu (pos + 1);
+            if (r == 3) { slot.bypassed = ! slot.bypassed.load(); power.setToggleState (! slot.bypassed.load(), juce::dontSendNotification); repaint(); owner.changed(); }
+            if (r == 4) owner.removeSlot (uid);
+        });
     }
 
 private:
+    void componentMovedOrResized (juce::Component&, bool, bool wasResized) override
+    {
+        if (wasResized) juce::MessageManager::callAsync ([sp = juce::Component::SafePointer<RackPanel> (&owner)] { if (sp != nullptr) sp->resized(); });
+    }
+
     RackPanel& owner;
     Slot& slot;
     juce::Colour colour;
@@ -128,6 +195,9 @@ private:
     juce::TextButton up { juce::String (juce::CharPointer_UTF8 ("\xe2\x96\xb2")) },
                      down { juce::String (juce::CharPointer_UTF8 ("\xe2\x96\xbc")) },
                      remove { juce::String (juce::CharPointer_UTF8 ("\xc3\x97")) };
+    juce::Component face;
+    std::unique_ptr<juce::AudioProcessorEditor> editor;
+    bool native = true;
 };
 
 //==============================================================================
@@ -138,7 +208,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto r = getLocalBounds().toFloat().reduced (getWidth() * (15.88f / 482.6f), 1.0f);
+        auto r = getLocalBounds().toFloat().reduced ((float) earFor (getWidth()), 2.0f);
         g.setColour (isMouseOver() ? Pequod::Colours::mustardLo.withAlpha (0.5f) : Pequod::Colours::well);
         g.fillRoundedRectangle (r, 3.0f);
         g.setColour (Pequod::Colours::mustardLo);
@@ -204,7 +274,6 @@ RackPanel::RackPanel (Rack& r) : rack (r)
         b->setWantsKeyboardFocus (false);
         addAndMakeVisible (b);
     }
-    addAndMakeVisible (editorHolder);
     show ({ ChainKind::track, 0 }, "Track 1");
 }
 
@@ -218,12 +287,11 @@ void RackPanel::show (ChainRef ref, const juce::String& t)
     const bool same = ref == shown && ! unitRows.isEmpty();
     shown = ref;
     title = t;
-    if (! same) { closeEditor(); selectedUid = 0; }
+    if (! same) { closeEditor(); unitView.setViewPosition (0, 0); }
     levelLabel.setText (ref.kind == ChainKind::track ? "TRIM" : "LEVEL", juce::dontSendNotification);
     level.setValue (ref.kind == ChainKind::track ? chain().trimDb.load() : chain().levelDb.load(), juce::dontSendNotification);
     bypassAll.setToggleState (chain().bypassAll.load(), juce::dontSendNotification);
     rebuildUnits();
-    if (selectedUid == 0 && ! chain().slots.empty()) select (chain().slots.front()->uid);
     repaint();
 }
 
@@ -236,66 +304,29 @@ void RackPanel::setTitle (const juce::String& t)
 void RackPanel::chainReplaced()
 {
     closeEditor();
-    selectedUid = 0;
     show (shown, title);
 }
 
 void RackPanel::closeEditor()
 {
-    if (editor != nullptr)
-    {
-        if (auto* p = editor->getAudioProcessor()) p->editorBeingDeleted (editor.get());
-        editor = nullptr;
-    }
-    editorUid = 0;
+    unitRows.clear();      // (each unit closes its panel)
 }
 
 void RackPanel::rebuildUnits()
 {
-    unitRows.clear();
-    for (auto& s : chain().slots)
-        units.addAndMakeVisible (unitRows.add (new Unit (*this, *s)));
-    resized();
-}
-
-void RackPanel::select (int uid)
-{
-    selectedUid = uid;
-    for (auto* u : unitRows) u->repaint();
-    showEditorFor (uid);
-}
-
-void RackPanel::showEditorFor (int uid)
-{
-    if (uid == editorUid && editor != nullptr) return;
-    closeEditor();
+    // keep the units (and their open panels) that are still in the chain, in the chain's order
+    juce::OwnedArray<Unit> old;
+    old.swapWith (unitRows);
     for (auto& s : chain().slots)
     {
-        if (s->uid != uid || s->processor == nullptr) continue;
-        if (auto* e = s->processor->createEditorAndMakeActive())
-        {
-            editor.reset (e);
-            editorUid = uid;
-            editorScales = Plugins::isNative (s->identifier);   // a VST3's own window can't be scaled
-            editorHolder.addAndMakeVisible (*editor);
-            layoutEditor();
-        }
+        Unit* u = nullptr;
+        for (int i = 0; i < old.size(); ++i)
+            if (old[i]->uid() == s->uid) { u = old.removeAndReturn (i); break; }
+        if (u == nullptr) u = new Unit (*this, *s);
+        units.addAndMakeVisible (unitRows.add (u));
     }
-    repaint();
-}
-
-void RackPanel::layoutEditor()
-{
-    editorHolder.setBounds (editorArea);
-    if (editor == nullptr) return;
-    // the panel at its own size, scaled down to fit (never up past 1.25x)
-    editor->setTransform ({});
-    const int w = juce::jmax (1, editor->getWidth()), h = juce::jmax (1, editor->getHeight());
-    const float k = editorScales ? juce::jmin (1.25f, (float) editorArea.getWidth() / (float) w, (float) editorArea.getHeight() / (float) h) : 1.0f;
-    const float x = juce::jmax (0.0f, ((float) editorArea.getWidth() - (float) w * k) * 0.5f);
-    const float y = juce::jmax (0.0f, juce::jmin (((float) editorArea.getHeight() - (float) h * k) * 0.5f, 12.0f));
-    editor->setTopLeftPosition (0, 0);
-    editor->setTransform (juce::AffineTransform::scale (k).translated (x, y));
+    old.clear();
+    resized();
 }
 
 void RackPanel::showAddMenu (int insertAt)
@@ -354,7 +385,8 @@ void RackPanel::addPlugin (const juce::String& id, int insertAt)
     slots.insert (slots.begin() + insertAt, std::move (s));
     rack.rebuild();
     rebuildUnits();
-    select (uid);
+    for (auto* u : unitRows)       // bring the new one into view
+        if (u->uid() == uid) unitView.setViewPosition (0, juce::jmax (0, u->getY() - 6));
     changed();
 }
 
@@ -364,18 +396,13 @@ void RackPanel::removeSlot (int uid)
     for (auto it = slots.begin(); it != slots.end(); ++it)
     {
         if ((*it)->uid != uid) continue;
-        if (editorUid == uid) closeEditor();
-        const int pos = (int) (it - slots.begin());
+        for (int i = 0; i < unitRows.size(); ++i)          // its panel goes before the plugin
+            if (unitRows[i]->uid() == uid) unitRows.remove (i);
         std::vector<std::unique_ptr<Slot>> removed;
         removed.push_back (std::move (*it));
         slots.erase (it);
         rack.rebuild (std::move (removed));
         rebuildUnits();
-        if (selectedUid == uid)
-        {
-            selectedUid = 0;
-            if (! slots.empty()) select (slots[(size_t) juce::jmin (pos, (int) slots.size() - 1)]->uid);
-        }
         changed();
         return;
     }
@@ -474,21 +501,9 @@ void RackPanel::paint (juce::Graphics& g)
         line << "     delay " << juce::String (1000.0 * lat / juce::jmax (1.0, rack.getSampleRate()), 1) << " ms";
     g.drawText (line, h.withTrimmedBottom (6), juce::Justification::topLeft, true);
 
-    // the units' rack rails
-    auto rails = unitView.getBounds().toFloat();
+    // the rack: the cabinet behind the rails
     g.setColour (Pequod::Colours::rail);
-    g.fillRect (rails);
-
-    // the panel area
-    g.setColour (Pequod::Colours::well);
-    g.fillRect (editorArea);
-    if (editor == nullptr)
-    {
-        g.setFont (Pequod::heading (14.0f));
-        g.setColour (Pequod::Colours::textDim);
-        g.drawText (chain().slots.empty() ? "No effects on this chain yet: + ADD EFFECT" : "Pick an effect to see its panel",
-                    editorArea, juce::Justification::centred);
-    }
+    g.fillRect (unitView.getBounds());
 }
 
 void RackPanel::resized()
@@ -509,20 +524,16 @@ void RackPanel::resized()
     level.setBounds (bar.removeFromLeft (juce::jmin (300, bar.getWidth() - 10)));
 
     r.removeFromTop (2);
-    const int unitsW = unitsWidthFor (r.getWidth());
-    unitView.setBounds (r.removeFromLeft (unitsW));
-    r.removeFromLeft (8);
-    editorArea = r.reduced (0, 0).withTrimmedBottom (8).withTrimmedRight (8);
+    r = r.withTrimmedBottom (8);
+    const int rackW = juce::jmin (maxRackW, r.getWidth() - 16);
+    unitView.setBounds (r.withSizeKeepingCentre (rackW + unitView.getScrollBarThickness(), r.getHeight()).withY (r.getY()));
 
-    const int fullH = unitHeightFor (unitsW) + unitGap;
-    const int w = unitsW - (((int) unitRows.size() + 1) * fullH > unitView.getHeight() ? unitView.getScrollBarThickness() : 0);
-    const int unitH = unitHeightFor (w);
+    const int w = rackW;
     int y = 6;
-    for (auto* u : unitRows) { u->setBounds (0, y, w, unitH); y += unitH + unitGap; }
-    addButton->setBounds (0, y, w, unitH);     // an empty 1U space
-    y += unitH + 6;
+    for (auto* u : unitRows) { const int h = u->heightFor (w); u->setBounds (0, y, w, h); y += h + unitGap; }
+    addButton->setBounds (0, y, w, juce::roundToInt (unitFor (w)));     // an empty 1U space
+    y += addButton->getHeight() + 6;
     units.setSize (w, juce::jmax (y, unitView.getHeight()));
-    layoutEditor();
 }
 
 } // namespace emerson

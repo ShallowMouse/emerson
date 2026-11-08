@@ -9,9 +9,9 @@ namespace emerson
 {
 
 //==============================================================================
-/** The right-hand side: the insert chain of whatever's picked in the track list.
-    A column of units (top to bottom is the signal's order) and the picked unit's
-    own panel beside it, drawn by the PEQUOD engine as in PEQUOD Host. */
+/** The right-hand side: the insert chain of whatever's picked in the track list,
+    as a 19-inch rack. Top to bottom is the signal's order; every effect's own panel
+    (drawn by the PEQUOD engine as in PEQUOD Host) is mounted in it, whole rack units high. */
 class RackPanel : public juce::Component
 {
 public:
@@ -25,7 +25,7 @@ public:
 
     /** The chain was replaced from outside (paste, load): rebuild the view. */
     void chainReplaced();
-    /** Closes the plugin panel (before plugins are deleted from outside). */
+    /** Closes the plugin panels (before plugins are deleted from outside). */
     void closeEditor();
 
     void copyChain();
@@ -50,7 +50,6 @@ private:
     Rack& rack;
     ChainRef shown;
     juce::String title;
-    int selectedUid = 0;
 
     juce::Viewport unitView;
     Units units;
@@ -61,19 +60,12 @@ private:
     juce::Label levelLabel;
     juce::TextButton bypassAll { "BYPASS ALL" }, copyButton { "COPY" }, pasteButton { "PASTE" }, clearButton { "CLEAR" };
 
-    juce::Component editorHolder;
-    std::unique_ptr<juce::AudioProcessorEditor> editor;
-    int editorUid = 0;
-    bool editorScales = true;
-    juce::Rectangle<int> editorArea, header;
+    juce::Rectangle<int> header;
 
     std::unique_ptr<juce::XmlElement> clipboard;
 
     Chain& chain() const { return rack.chain (shown.kind, shown.index); }
     void rebuildUnits();
-    void select (int uid);
-    void showEditorFor (int uid);
-    void layoutEditor();
     void showAddMenu (int insertAt);
     void addPlugin (const juce::String& identifier, int insertAt);
     void removeSlot (int uid);

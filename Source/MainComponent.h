@@ -105,6 +105,9 @@ private:
     void resetRack();
     void loadRack (const juce::XmlElement&, const juce::String& what);
     void showAudioSettings();
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    void showHostedSettings();
+   #endif
     void applyHawthorneInfo();
     void scanVst3 (bool tell);
 

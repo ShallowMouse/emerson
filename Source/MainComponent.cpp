@@ -107,14 +107,20 @@ MainComponent::MainComponent()
         outputMode = (int) Session::Output::whitman;
         toWhitmanButton.setVisible (false);
         directButton.setVisible (false);
-        audioButton.setVisible (false);     // (MELVILLE's INTERFACE picks the device)
+        audioButton.setTooltip ("Settings: where EMERSON finds PEQUOD VST3s (MELVILLE's INTERFACE picks the audio device)");
         openButton.setVisible (false);      // (the racks are kept with the reel: MELVILLE's LIBRARY)
         saveButton.setVisible (false);
     }
     toWhitmanButton.onClick = [this] { if (toWhitmanButton.getToggleState()) setOutput (Session::Output::whitman); };
     directButton.onClick    = [this] { if (directButton.getToggleState()) setOutput (Session::Output::directOuts); };
 
-    audioButton.onClick = [this] { showAudioSettings(); };
+    audioButton.onClick = [this]
+    {
+       #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+        if (melville::isHosted()) { showHostedSettings(); return; }
+       #endif
+        showAudioSettings();
+    };
     openButton.onClick  = [this] { openRack(); };
     saveButton.onClick  = [this] { saveRack(); };
     resetButton.onClick = [this] { resetRack(); };
@@ -613,6 +619,54 @@ void MainComponent::showAudioSettings()
     o.componentToCentreAround = this;
     o.launchAsync();
 }
+
+#if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+/** Inside MELVILLE: EMERSON's own settings (the device is MELVILLE's). */
+void MainComponent::showHostedSettings()
+{
+    struct Panel : juce::Component
+    {
+        explicit Panel (MainComponent& m) : owner (m)
+        {
+            for (auto* b : { &choose, &again })
+            {
+                b->setColour (juce::TextButton::buttonColourId, Pequod::Colours::panelHi);
+                addAndMakeVisible (b);
+            }
+            choose.onClick = [this] { if (owner.rackPanel.onScanVst3) owner.rackPanel.onScanVst3(); juce::Timer::callAfterDelay (500, [sp = juce::Component::SafePointer<Panel> (this)] { if (sp != nullptr) sp->repaint(); }); };
+            again.onClick  = [this] { owner.scanVst3 (true); };
+            setSize (520, 190);
+        }
+        void paint (juce::Graphics& g) override
+        {
+            g.fillAll (Pequod::Colours::bg);
+            auto r = getLocalBounds().reduced (18, 14);
+            g.setFont (Pequod::heading (13.0f));
+            g.setColour (partui::accent ("emerson"));
+            g.drawText ("PEQUOD VST3s", r.removeFromTop (20), juce::Justification::centredLeft);
+            g.setFont (Pequod::body (12.5f));
+            g.setColour (Pequod::Colours::textDim);
+            g.drawFittedText ("The built-in PEQUOD effects are always in + ADD EFFECT. PEQUOD studio VST3s the engine doesn't have "
+                              "are found in the VST3 folder and in this one:", r.removeFromTop (36), juce::Justification::topLeft, 2);
+            const juce::File f (owner.settings().getValue ("vst3Folder"));
+            g.setColour (Pequod::Colours::text);
+            g.drawText (f.isDirectory() ? f.getFullPathName() : juce::String ("(none chosen)"), r.removeFromTop (22), juce::Justification::centredLeft, true);
+            g.setColour (Pequod::Colours::textDim);
+            g.drawText ("The audio device is MELVILLE's: INTERFACE on its bar.", getLocalBounds().reduced (18, 12).removeFromBottom (18), juce::Justification::centredLeft);
+        }
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (18, 14).withTrimmedTop (82).removeFromTop (30);
+            choose.setBounds (r.removeFromLeft (170));
+            r.removeFromLeft (8);
+            again.setBounds (r.removeFromLeft (130));
+        }
+        MainComponent& owner;
+        juce::TextButton choose { "CHOOSE FOLDER..." }, again { "LOOK AGAIN" };
+    };
+    melville::showPanel (std::make_unique<Panel> (*this), "EMERSON settings", "emerson");
+}
+#endif
 
 void MainComponent::scanVst3 (bool tell)
 {

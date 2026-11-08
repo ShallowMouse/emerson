@@ -1,6 +1,7 @@
 #include "RackPanel.h"
 #include "Engine/RackState.h"
 #include "Plugins.h"
+#include "PequodPanel.h"
 
 namespace emerson
 {
@@ -16,7 +17,7 @@ static double unitFor (int width) { return width * (unitMm / rackWidthMm); }
 
 // PEQUOD's own panels sit on a wood surround (14 px) with a rounded plate: in the rack only the plate
 // shows, square to the ears
-static constexpr int pequodCrop = 18;
+static int pequodCrop() { return PequodPanel::isRackMounted() ? 0 : 18; }   // (rack-mounted panels have no wood)
 
 //==============================================================================
 class RackPanel::Unit : public juce::Component, private juce::ComponentListener
@@ -71,7 +72,7 @@ public:
     {
         if (editor == nullptr) return {};
         auto r = juce::Rectangle<int> (editor->getWidth(), editor->getHeight());
-        return native ? r.reduced (pequodCrop) : r;
+        return native ? r.reduced (pequodCrop()) : r;
     }
 
     /** Height in the rack at this width: a whole number of units. */

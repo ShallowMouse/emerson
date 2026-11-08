@@ -2,6 +2,7 @@
 #include "Melville.h"
 #include "Plugins.h"
 #include "PequodNative.h"
+#include "PequodPanel.h"
 #include <iostream>
 
 namespace emerson
@@ -34,6 +35,8 @@ static RackState::Loader loader()
 //==============================================================================
 MainComponent::MainComponent()
 {
+    PequodPanel::setRackMounted (true);      // the effects' own panels are rack faceplates (whole units)
+
     link.open();
     directOutPatch.open();
     if (auto v = settings().getXmlValue ("vst3"))
@@ -76,11 +79,12 @@ MainComponent::MainComponent()
     }
     outputMode = (int) session.output;
 
-    for (auto* b : { &audioButton, &openButton, &saveButton, &resetButton, &updateButton, &toWhitmanButton, &directButton })
+    for (auto* b : std::initializer_list<juce::TextButton*> { &audioButton, &openButton, &saveButton, &resetButton, &updateButton, &toWhitmanButton, &directButton })
     {
         b->setWantsKeyboardFocus (false);
         addAndMakeVisible (b);
     }
+    for (auto* k : { &audioButton, &openButton, &saveButton, &resetButton }) k->setPartColour (partColour());
     audioButton.setTooltip ("The audio device: pick Hawthorne Route (ASIO)");
     openButton.setTooltip ("Open a saved rack");
     saveButton.setTooltip ("Save this rack (every chain and setting) to a file");
@@ -723,7 +727,7 @@ juce::String MainComponent::statusLine (juce::Colour& c) const
     const auto reel = routeInfo.hasInfo && routeInfo.reelName.isNotEmpty() ? "REEL: " + routeInfo.reelName.toUpperCase() + dot() : juce::String();
     if (melville::isHosted())
     {
-        c = Pequod::Colours::mustard;
+        c = partColour();
         return reel + juce::String (numTracks.load()) + " TRACKS" + dot() + rate + tail;
     }
     const auto head = "HAWTHORNE ROUTE" + dot() + reel + juce::String (numTracks.load()) + " TRACKS" + dot() + rate;
@@ -763,21 +767,12 @@ void MainComponent::paint (juce::Graphics& g)
 {
     g.fillAll (Pequod::Colours::bg);
 
-    auto bar = getLocalBounds().removeFromTop (64);
-    g.setColour (Pequod::Colours::rail);
-    g.fillRect (bar);
-    g.setColour (Pequod::Colours::mustard);
-    g.fillRect (bar.removeFromBottom (2));
-
-    auto logo = bar.reduced (18, 0).removeFromLeft (190);
-    g.setFont (Pequod::heading (30.0f));
-    g.setColour (Pequod::Colours::mustard);
-    g.drawText ("EMERSON", logo.withTrimmedBottom (14), juce::Justification::bottomLeft);
-    g.setFont (Pequod::heading (11.0f, false));
-    g.setColour (Pequod::Colours::textDim);
-    g.drawText (melville::isHosted() ? juce::String ("FX RACK")
-                                     : "PEQUOD  " + juce::String (juce::CharPointer_UTF8 ("\xc2\xb7")) + "  FX RACK  " + juce::String (JUCE_APPLICATION_VERSION_STRING),
-                logo.withTrimmedTop (42), juce::Justification::topLeft);
+    auto bar = getLocalBounds().removeFromTop (partui::headerHeight);
+    partui::drawBar (g, bar, partColour());
+    partui::drawWordmark (g, bar.reduced (18, 0).removeFromLeft (190), "EMERSON",
+                          melville::isHosted() ? juce::String ("FX RACK")
+                                               : "PEQUOD  " + juce::String (juce::CharPointer_UTF8 ("\xc2\xb7")) + "  FX RACK  " + juce::String (JUCE_APPLICATION_VERSION_STRING),
+                          partColour(), Pequod::heading (30.0f));
 
     juce::Colour c;
     const auto status = statusLine (c);
@@ -812,25 +807,20 @@ void MainComponent::paint (juce::Graphics& g)
 void MainComponent::resized()
 {
     auto r = getLocalBounds();
-    auto bar = r.removeFromTop (64).reduced (14, 14);
+    auto bar = r.removeFromTop (partui::headerHeight).withTrimmedBottom (2).reduced (14, 0);
     bar.removeFromLeft (200);
-    for (auto* b : { &audioButton, &saveButton, &openButton, &resetButton })
-    {
-        if (! b->isVisible()) continue;
-        b->setBounds (bar.removeFromRight (76));
-        bar.removeFromRight (6);
-    }
+    bar = partui::placeKeys (bar, { &audioButton, &saveButton, &openButton, &resetButton });   // (the keys every part has, right)
     bar.removeFromRight (10);
-    directButton.setBounds (bar.removeFromRight (104));
-    toWhitmanButton.setBounds (bar.removeFromRight (104));
+    directButton.setBounds (bar.removeFromRight (104).withSizeKeepingCentre (104, partui::keyHeight));
+    toWhitmanButton.setBounds (bar.removeFromRight (104).withSizeKeepingCentre (104, partui::keyHeight));
     outputLabelArea = bar.removeFromRight (60).withTrimmedRight (8);
     bar.removeFromRight (6);
     if (updateButton.isVisible())
     {
-        updateButton.setBounds (bar.removeFromRight (150));
+        updateButton.setBounds (bar.removeFromRight (150).withSizeKeepingCentre (150, partui::keyHeight));
         bar.removeFromRight (6);
     }
-    statusArea = bar.withTrimmedRight (10).expanded (0, 8);
+    statusArea = bar.withTrimmedRight (10).withSizeKeepingCentre (bar.getWidth() - 10, 40);
 
     r.removeFromTop (8);
     auto left = r.removeFromLeft (340).withTrimmedLeft (8).withTrimmedBottom (8);

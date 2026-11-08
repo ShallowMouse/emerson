@@ -40,6 +40,7 @@ public:
     std::function<void (ChainRef, juce::Point<int>)> onMenu;     // right click
     std::function<void (int track)> onPickDirectOut;             // the OUT box
     std::function<void (int track)> onRename;                    // double click on the name
+    std::function<juce::Colour (int)> colourOf;                  // a track's colour (transparent: none)
 
     void resized() override;
 

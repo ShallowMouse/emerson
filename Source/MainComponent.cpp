@@ -104,6 +104,8 @@ MainComponent::MainComponent()
         toWhitmanButton.setVisible (false);
         directButton.setVisible (false);
         audioButton.setVisible (false);     // (MELVILLE's INTERFACE picks the device)
+        openButton.setVisible (false);      // (the racks are kept with the reel: MELVILLE's LIBRARY)
+        saveButton.setVisible (false);
     }
     toWhitmanButton.onClick = [this] { if (toWhitmanButton.getToggleState()) setOutput (Session::Output::whitman); };
     directButton.onClick    = [this] { if (directButton.getToggleState()) setOutput (Session::Output::directOuts); };
@@ -136,6 +138,9 @@ MainComponent::MainComponent()
     trackList.onMenu = [this] (ChainRef r, juce::Point<int> p) { chainMenu (r, p); };
     trackList.onPickDirectOut = [this] (int t) { pickDirectOut (t); };
     trackList.onRename = [this] (int t) { rename (t); };
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    trackList.colourOf = [] (int t) { auto& tk = melville::tracks(); return tk.colour ? tk.colour (t) : juce::Colours::transparentBlack; };
+   #endif
     addAndMakeVisible (trackList);
 
     rackPanel.createPlugin = [] (const juce::String& id, juce::String& err) { return Plugins::create (id, err); };
@@ -411,6 +416,23 @@ void MainComponent::pickDirectOut (int t)
 
 void MainComponent::rename (int t)
 {
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    if (melville::isHosted())
+    {
+        // one name for the track everywhere: it's kept on Hawthorne's reel
+        auto& tk = melville::tracks();
+        if (! tk.rename) return;
+        auto* w = new juce::AlertWindow ("Track " + juce::String (t + 1), "Its name (on the tape, the rack, the desk and the patchbay)", juce::MessageBoxIconType::NoIcon, this);
+        w->addTextEditor ("name", trackList.nameOf (t));
+        w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        w->addButton ("CANCEL", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+        w->enterModalState (true, juce::ModalCallbackFunction::create ([t, w] (int r)
+        {
+            if (r == 1) if (auto& f = melville::tracks().rename) f (t, w->getTextEditorContents ("name"));
+        }), true);
+        return;
+    }
+   #endif
     auto* w = new juce::AlertWindow ("Track " + juce::String (t + 1), "Its name in EMERSON (leave it empty to use Hawthorne's)", juce::MessageBoxIconType::NoIcon, this);
     w->addTextEditor ("name", session.names[t]);
     w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
@@ -438,11 +460,30 @@ void MainComponent::chainMenu (ChainRef r, juce::Point<int>)
     {
         m.addSeparator();
         m.addItem (5, "Rename...");
+       #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+        if (auto& tk = melville::tracks(); tk.palette != nullptr && tk.recolour != nullptr)
+        {
+            juce::PopupMenu colours;
+            const auto list = tk.palette();
+            for (int i = 0; i < list.size(); ++i) colours.addColouredItem (300 + i, "  ", list[i]);
+            colours.addItem (399, "None");
+            m.addSubMenu ("Colour", colours);
+        }
+       #endif
         m.addItem (6, "Paste chain to every track", rackPanel.hasClipboard());
         if (session.output == Session::Output::directOuts) m.addItem (7, "Direct out...");
     }
     m.showMenuAsync (juce::PopupMenu::Options().withMousePosition(), [this, r] (int k)
     {
+       #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+        if (k >= 300 && k <= 399 && r.kind == ChainKind::track)
+        {
+            auto& tk = melville::tracks();
+            const auto list = tk.palette ? tk.palette() : juce::Array<juce::Colour>();
+            if (tk.recolour) tk.recolour (r.index, k == 399 ? juce::Colours::transparentBlack : list[k - 300]);
+            return;
+        }
+       #endif
         auto& ch = rack.chain (r.kind, r.index);
         switch (k)
         {
@@ -610,6 +651,14 @@ void MainComponent::applyHawthorneInfo()
 
 void MainComponent::timerCallback()
 {
+   #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
+    if (const int rev = melville::tracks().rev.load(); rev != tracksRev)     // a track renamed or coloured (on the reel)
+    {
+        tracksRev = rev;
+        trackList.repaint();
+        if (rackPanel.getShown().kind == ChainKind::track) rackPanel.setTitle (trackList.nameOf (rackPanel.getShown().index));
+    }
+   #endif
     if (routingChanged.exchange (false))
     {
         auto* dev = deviceManager.getCurrentAudioDevice();
@@ -672,6 +721,11 @@ juce::String MainComponent::statusLine (juce::Colour& c) const
     }
    #endif
     const auto reel = routeInfo.hasInfo && routeInfo.reelName.isNotEmpty() ? "REEL: " + routeInfo.reelName.toUpperCase() + dot() : juce::String();
+    if (melville::isHosted())
+    {
+        c = Pequod::Colours::mustard;
+        return reel + juce::String (numTracks.load()) + " TRACKS" + dot() + rate + tail;
+    }
     const auto head = "HAWTHORNE ROUTE" + dot() + reel + juce::String (numTracks.load()) + " TRACKS" + dot() + rate;
 
     if (session.output == Session::Output::directOuts)
@@ -692,6 +746,8 @@ juce::String MainComponent::statusLine (juce::Colour& c) const
 
 juce::String MainComponent::hintLine() const
 {
+    if (melville::isHosted())
+        return "Inserts on Hawthorne's tracks, WHITMAN's returns and the mix. Their jacks are on MELVILLE's PATCHBAY";
     if (! deviceIsRoute.load())
         return "Hawthorne Route is the ASIO driver Hawthorne installs (Hawthorne > SETTINGS)";
     if (session.output == Session::Output::directOuts)
@@ -719,7 +775,8 @@ void MainComponent::paint (juce::Graphics& g)
     g.drawText ("EMERSON", logo.withTrimmedBottom (14), juce::Justification::bottomLeft);
     g.setFont (Pequod::heading (11.0f, false));
     g.setColour (Pequod::Colours::textDim);
-    g.drawText ("PEQUOD  " + juce::String (juce::CharPointer_UTF8 ("\xc2\xb7")) + "  FX RACK  " + juce::String (JUCE_APPLICATION_VERSION_STRING),
+    g.drawText (melville::isHosted() ? juce::String ("FX RACK")
+                                     : "PEQUOD  " + juce::String (juce::CharPointer_UTF8 ("\xc2\xb7")) + "  FX RACK  " + juce::String (JUCE_APPLICATION_VERSION_STRING),
                 logo.withTrimmedTop (42), juce::Justification::topLeft);
 
     juce::Colour c;

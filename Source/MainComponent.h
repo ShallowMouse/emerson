@@ -107,6 +107,7 @@ private:
     juce::String hintLine() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+    int tracksRev = -1;
 };
 
 } // namespace emerson

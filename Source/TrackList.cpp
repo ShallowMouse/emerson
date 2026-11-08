@@ -1,4 +1,5 @@
 #include "TrackList.h"
+#include "Melville.h"
 #include "EmersonLookAndFeel.h"
 #include "Plugins.h"
 
@@ -58,10 +59,13 @@ public:
 
         g.setColour (sel ? Pequod::Colours::panelHi : ((ref.index % 2 == 0 || ref.kind != ChainKind::track) ? Pequod::Colours::panel : Pequod::Colours::panel.darker (0.12f)));
         g.fillRect (r);
-        if (sel)
+        // the track's colour down the left edge (the selection's mustard over it)
+        const auto tc = ref.kind == ChainKind::track && owner.colourOf ? owner.colourOf (ref.index) : juce::Colours::transparentBlack;
+        if (sel || ! tc.isTransparent())
         {
-            g.setColour (Pequod::Colours::mustard);
-            g.fillRect (r.removeFromLeft (3));
+            g.setColour (sel ? Pequod::Colours::mustard : tc);
+            g.fillRect (r.removeFromLeft (sel ? 3 : 5));
+            if (! sel) r.setLeft (r.getX() - 2);
         }
         else r.removeFromLeft (3);
         g.setColour (Pequod::Colours::line.withAlpha (0.6f));
@@ -163,7 +167,7 @@ TrackList::~TrackList() = default;
 
 juce::String TrackList::nameOf (int t) const
 {
-    if (session.names[t].isNotEmpty()) return session.names[t];
+    if (session.names[t].isNotEmpty() && ! melville::isHosted()) return session.names[t];   // (in MELVILLE the reel's name is the name)
     if (t < hawthorneNames.size() && hawthorneNames[t].isNotEmpty()) return hawthorneNames[t];
     return "Track " + juce::String (t + 1);
 }

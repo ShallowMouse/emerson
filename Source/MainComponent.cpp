@@ -633,7 +633,12 @@ void MainComponent::showHostedSettings()
                 b->setColour (juce::TextButton::buttonColourId, Pequod::Colours::panelHi);
                 addAndMakeVisible (b);
             }
-            choose.onClick = [this] { if (owner.rackPanel.onScanVst3) owner.rackPanel.onScanVst3(); juce::Timer::callAfterDelay (500, [sp = juce::Component::SafePointer<Panel> (this)] { if (sp != nullptr) sp->repaint(); }); };
+            choose.onClick = [this]
+            {
+                if (owner.rackPanel.onScanVst3) owner.rackPanel.onScanVst3();
+                juce::Component::SafePointer<juce::Component> sp (this);     // (made here: MSVC won't in the capture)
+                juce::Timer::callAfterDelay (500, [sp] { if (sp != nullptr) sp->repaint(); });
+            };
             again.onClick  = [this] { owner.scanVst3 (true); };
             setSize (520, 190);
         }

@@ -204,7 +204,8 @@ void MainComponent::openAudio()
    #if defined (MELVILLE_HOSTED) && MELVILLE_HOSTED
     melville::addToSession (deviceManager, {
         [this] { return RackState::toXml (rack, session); },
-        [this] (const juce::XmlElement& x) { loadRack (x, "the session"); } });
+        [this] (const juce::XmlElement& x) { loadRack (x, "the session"); },
+        [this] (const melville::NewStudio&) { loadRack (juce::XmlElement ("EMERSON"), "a new reel"); } });     // (empty racks)
    #endif
     if (! hosted)
         deviceManager.initialise (Rack::maxTracks + 3, Rack::maxTracks + 2, saved.get(), true);

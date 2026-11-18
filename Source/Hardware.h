@@ -175,4 +175,44 @@ namespace Pequod::hw
             g.fillRect (seg);
         }
     }
+    /** A display window let into the panel: a bezel, dark glass, and the glass's sheen on top
+        (draw the readout between window() and glass()). */
+    inline void window (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour glassColour = juce::Colour (0xff060c08))
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.fillRoundedRectangle (r.expanded (2.0f), 5.0f);
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff101010), r.getX(), r.getY(), juce::Colour (0xff3a3a3a), r.getX(), r.getBottom(), false));
+        g.fillRoundedRectangle (r.expanded (1.0f), 4.5f);
+        g.setColour (glassColour);
+        g.fillRoundedRectangle (r.reduced (1.5f), 3.5f);
+    }
+    inline void glass (juce::Graphics& g, juce::Rectangle<float> r)
+    {
+        auto in = r.reduced (1.5f);
+        juce::Path sheen;
+        sheen.startNewSubPath (in.getX(), in.getY());
+        sheen.lineTo (in.getRight(), in.getY());
+        sheen.lineTo (in.getRight(), in.getY() + in.getHeight() * 0.18f);
+        sheen.quadraticTo (in.getCentreX(), in.getY() + in.getHeight() * 0.42f, in.getX(), in.getY() + in.getHeight() * 0.3f);
+        sheen.closeSubPath();
+        g.setColour (juce::Colours::white.withAlpha (0.05f));
+        g.fillPath (sheen);
+    }
+
+    /** Lit characters on a display: their glow, then the characters (and the unlit segments behind them). */
+    inline void lit (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> r, juce::Colour colour, juce::Justification j,
+                     const juce::String& ghost = {})
+    {
+        const auto box = r.toNearestInt();
+        if (ghost.isNotEmpty())
+        {
+            g.setColour (colour.withAlpha (0.07f));
+            g.drawFittedText (ghost, box, j, 1, 0.8f);
+        }
+        g.setColour (colour.withAlpha (0.18f));
+        for (auto d : { juce::Point<int> (-1, 0), juce::Point<int> (1, 0), juce::Point<int> (0, -1), juce::Point<int> (0, 1) })
+            g.drawFittedText (text, box + d, j, 1, 0.8f);
+        g.setColour (colour);
+        g.drawFittedText (text, box, j, 1, 0.8f);
+    }
 }

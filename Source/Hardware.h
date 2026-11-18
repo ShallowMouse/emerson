@@ -6,7 +6,7 @@
 
 namespace Pequod::hw
 {
-    /** A speckled powder-coat texture (made once, at 2x, so it holds up on high-DPI screens). */
+    /** A speckled powder-coat texture (made once). */
     inline const juce::Image& speckle()
     {
         static const juce::Image tile = []
@@ -36,7 +36,8 @@ namespace Pequod::hw
         g.fillPath (p);
         g.saveState();
         g.reduceClipRegion (p);
-        g.setFillType (juce::FillType (speckle(), juce::AffineTransform::scale (0.5f).translated (r.getX(), r.getY())));
+        // (tiled at 1:1 on whole pixels: the fast way to fill with an image - scaling it costs a resample per pixel)
+        g.setFillType (juce::FillType (speckle(), juce::AffineTransform::translation (std::floor (r.getX()), std::floor (r.getY()))));
         g.fillRect (r);
         g.restoreState();
         g.setColour (juce::Colours::white.withAlpha (0.10f));

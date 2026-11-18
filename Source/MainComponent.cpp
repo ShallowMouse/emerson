@@ -849,13 +849,18 @@ void MainComponent::paint (juce::Graphics& g)
     if (toWhitmanButton.isVisible())
         g.drawText ("OUTPUT", outputLabelArea, juce::Justification::centredRight);
 
-    // the track list's frame
-    g.setColour (Pequod::Colours::rail);
-    g.fillRect (trackList.getBounds().expanded (0, 0).withTrimmedTop (-24));
-    g.setFont (Pequod::heading (12.0f));
-    g.setColour (Pequod::Colours::textDim);
-    g.drawText (session.output == Session::Output::directOuts ? "TRACKS" + arrow() + "INSERTS" + arrow() + "DIRECT OUT" : "TRACKS" + arrow() + "INSERTS" + arrow() + "WHITMAN",
-                trackList.getBounds().withY (trackList.getY() - 24).withHeight (24).reduced (12, 0), juce::Justification::centredLeft);
+    // the track list's frame: a patch panel's own plate, its legend engraved across the top
+    {
+        auto frame = trackList.getBounds().withTrimmedTop (-24).toFloat();
+        Pequod::hw::panel (g, frame, juce::Colour (0xff1b1c1f), 3.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.drawRoundedRectangle (frame, 3.0f, 1.0f);
+        Pequod::hw::screw (g, frame.getTopLeft() + juce::Point<float> (9.0f, 12.0f), 3.0f, 0.5f);
+        Pequod::hw::screw (g, frame.getTopRight() + juce::Point<float> (-9.0f, 12.0f), 3.0f, 1.7f);
+        g.setFont (Pequod::heading (12.0f));
+        Pequod::hw::engraved (g, session.output == Session::Output::directOuts ? "TRACKS" + arrow() + "INSERTS" + arrow() + "DIRECT OUT" : "TRACKS" + arrow() + "INSERTS" + arrow() + "WHITMAN",
+                              frame.withHeight (24.0f).reduced (20.0f, 0.0f), Pequod::Colours::textDim, juce::Justification::centredLeft);
+    }
 
     if (trackList.getNumTracks() == 0)
     {

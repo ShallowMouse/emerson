@@ -44,7 +44,7 @@ public:
 
 private:
     class Unit;
-    class Units : public juce::Component {};
+    class Units : public juce::Component { public: void paint (juce::Graphics&) override; };   // the rack's rails, behind the units
     class AddButton;
 
     Rack& rack;
@@ -60,7 +60,7 @@ private:
     juce::Label levelLabel;
     juce::TextButton bypassAll { "BYPASS ALL" }, copyButton { "COPY" }, pasteButton { "PASTE" }, clearButton { "CLEAR" };
 
-    juce::Rectangle<int> header;
+    juce::Rectangle<int> header, toolbar;
 
     std::unique_ptr<juce::XmlElement> clipboard;
 

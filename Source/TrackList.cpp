@@ -52,80 +52,87 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        // a strip of the patch panel: its number stamped in, a meter, the name on a strip of tape,
+        // what's in its inserts underneath, and a lamp that's lit when it's the one in the rack
         auto r = getLocalBounds();
         const bool sel = owner.selected == ref;
         auto& c = chain();
         const bool off = c.bypassAll.load();
 
-        g.setColour (sel ? Pequod::Colours::panelHi : ((ref.index % 2 == 0 || ref.kind != ChainKind::track) ? Pequod::Colours::panel : Pequod::Colours::panel.darker (0.12f)));
-        g.fillRect (r);
-        // the track's colour down the left edge (the selection's mustard over it)
-        const auto tc = ref.kind == ChainKind::track && owner.colourOf ? owner.colourOf (ref.index) : juce::Colours::transparentBlack;
-        if (sel || ! tc.isTransparent())
-        {
-            g.setColour (sel ? Pequod::Colours::mustard : tc);
-            g.fillRect (r.removeFromLeft (sel ? 3 : 5));
-            if (! sel) r.setLeft (r.getX() - 2);
-        }
-        else r.removeFromLeft (3);
-        g.setColour (Pequod::Colours::line.withAlpha (0.6f));
+        Pequod::hw::panel (g, r.toFloat(), sel ? juce::Colour (0xff34373c) : juce::Colour (ref.index % 2 == 0 || ref.kind != ChainKind::track ? 0xff25272b : 0xff212327));
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
         g.fillRect (getLocalBounds().removeFromBottom (1));
 
-        // number / armed lamp
-        auto num = r.removeFromLeft (34);
+        // the track's colour down the left edge
+        const auto tc = ref.kind == ChainKind::track && owner.colourOf ? owner.colourOf (ref.index) : juce::Colours::transparentBlack;
+        auto edge = r.removeFromLeft (5);
+        if (! tc.isTransparent()) { g.setColour (tc); g.fillRect (edge.reduced (0, 2)); }
+
+        // number (red when armed), or a lamp for the returns and the mix
+        auto num = r.removeFromLeft (30);
         if (ref.kind == ChainKind::track)
         {
             const bool isArmed = juce::isPositiveAndBelow (ref.index, (int) owner.armed.size()) && owner.armed[(size_t) ref.index];
             g.setFont (Pequod::heading (13.0f));
-            g.setColour (isArmed ? Pequod::Colours::danger : Pequod::Colours::textDim);
-            g.drawText (juce::String (ref.index + 1), num, juce::Justification::centred);
+            Pequod::hw::engraved (g, juce::String (ref.index + 1), num.toFloat(), isArmed ? Pequod::Colours::danger : Pequod::Colours::textDim, juce::Justification::centred);
         }
         else
-        {
-            g.setColour (Pequod::Colours::mustardLo);
-            g.fillEllipse (num.toFloat().withSizeKeepingCentre (8, 8));
-        }
+            Pequod::hw::lamp (g, num.toFloat().getCentre(), 3.5f, Pequod::Colours::mustard, ! c.slots.empty() && ! off);
 
-        // meter (after the chain)
-        auto meter = r.removeFromLeft (6).reduced (0, 6);
-        g.setColour (Pequod::Colours::well);
-        g.fillRect (meter);
+        // meter (after the chain): a ladder of LEDs
         const float pk = c.peakOut.load();
         const float db = juce::Decibels::gainToDecibels (pk, -60.0f);
-        const float frac = juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f);
-        auto lit = meter.toFloat();
-        lit = lit.removeFromBottom (lit.getHeight() * frac);
-        g.setColour (pk >= 1.0f ? Pequod::Colours::danger : (db > -6.0f ? juce::Colour (0xffe0b050) : Pequod::Colours::mustard));
-        g.fillRect (lit);
+        Pequod::hw::ledLadder (g, r.removeFromLeft (6).reduced (0, 4).toFloat(), juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f), 8, juce::Colour (0xff60c050));
         r.removeFromLeft (8);
+
+        // the lamp: this is the chain in the rack
+        auto lampArea = r.removeFromRight (22);
+        Pequod::hw::lamp (g, lampArea.toFloat().getCentre(), 3.5f, juce::Colour (0xffffb040), sel);
 
         if (showsOut())
         {
-            auto ob = outBox();
+            auto ob = outBox().translated (-22, 0);
             r.setRight (ob.getX() - 4);
             const int o = owner.session.directOut[(size_t) ref.index];
-            g.setColour (o >= 0 ? Pequod::Colours::mustardLo : Pequod::Colours::well);
-            g.fillRoundedRectangle (ob.toFloat(), 3.0f);
+            Pequod::hw::key (g, ob.toFloat(), juce::Colour (0xff3a3c40), false, o >= 0, Pequod::Colours::mustardLo);
             g.setColour (o >= 0 ? Pequod::Colours::text : Pequod::Colours::textDim);
             g.setFont (Pequod::heading (11.0f));
             g.drawText (o >= 0 ? "OUT " + juce::String (o + 1) : juce::String ("OUT -"), ob, juce::Justification::centred);
         }
 
-        // name + inserts
-        auto top = r.removeFromTop (r.getHeight() / 2 + 1);
+        // the name, written on a strip of tape stuck to the panel
+        auto top = r.removeFromTop (r.getHeight() / 2 + 1).withTrimmedTop (3).toFloat();
         g.setFont (Pequod::heading (13.0f));
-        g.setColour (off ? Pequod::Colours::textDim : Pequod::Colours::text);
-        g.drawText (label() + (off ? "  [BYPASSED]" : ""), top.withTrimmedTop (3), juce::Justification::bottomLeft, true);
+        const auto name = label() + (off ? "  [BYPASSED]" : "");
+        const float tapeW = juce::jmin (top.getWidth(), (float) juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), name) + 14.0f);
+        auto tape = top.withWidth (tapeW).withTrimmedBottom (1.0f);
+        juce::Path strip;
+        juce::Random rng (ref.index * 7 + (int) ref.kind * 101 + 3);
+        strip.startNewSubPath (tape.getX(), tape.getY());
+        strip.lineTo (tape.getRight(), tape.getY());
+        for (int k = 1; k <= 5; ++k)          // (torn, not cut)
+            strip.lineTo (tape.getRight() + (rng.nextFloat() - 0.5f) * 2.4f, tape.getY() + tape.getHeight() * (float) k / 5.0f);
+        strip.lineTo (tape.getX(), tape.getBottom());
+        for (int k = 4; k >= 1; --k)
+            strip.lineTo (tape.getX() + (rng.nextFloat() - 0.5f) * 2.4f, tape.getY() + tape.getHeight() * (float) k / 5.0f);
+        strip.closeSubPath();
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.fillPath (strip, juce::AffineTransform::translation (0.6f, 1.0f));
+        g.setColour (off ? juce::Colour (0xffa9a291) : juce::Colour (0xffe9e0c7));
+        g.fillPath (strip);
+        g.setColour (juce::Colour (0xff1c2a52).withAlpha (off ? 0.5f : 0.95f));    // (pen)
+        g.drawText (name, tape.withTrimmedLeft (7.0f), juce::Justification::centredLeft, true);
+
         g.setFont (Pequod::body (11.0f));
         const auto ins = inserts();
         const auto sub = subLabel();
         g.setColour (c.slots.empty() ? Pequod::Colours::textDim.withAlpha (0.6f) : Pequod::Colours::mustard.withAlpha (off ? 0.4f : 0.9f));
-        g.drawText (c.slots.empty() && sub.isNotEmpty() ? sub : ins, r.withTrimmedBottom (3), juce::Justification::topLeft, true);
+        g.drawText (c.slots.empty() && sub.isNotEmpty() ? sub : ins, r.withTrimmedBottom (2).withTrimmedTop (1), juce::Justification::centredLeft, true);
     }
 
     void mouseDown (const juce::MouseEvent& e) override
     {
-        if (showsOut() && outBox().contains (e.getPosition()) && e.mods.isLeftButtonDown())
+        if (showsOut() && outBox().translated (-22, 0).contains (e.getPosition()) && e.mods.isLeftButtonDown())
         {
             if (owner.onPickDirectOut) owner.onPickDirectOut (ref.index);
             return;
@@ -136,7 +143,7 @@ public:
 
     void mouseDoubleClick (const juce::MouseEvent& e) override
     {
-        if (ref.kind == ChainKind::track && ! (showsOut() && outBox().contains (e.getPosition())) && owner.onRename)
+        if (ref.kind == ChainKind::track && ! (showsOut() && outBox().translated (-22, 0).contains (e.getPosition())) && owner.onRename)
             owner.onRename (ref.index);
     }
 

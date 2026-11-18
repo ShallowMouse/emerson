@@ -93,10 +93,9 @@ public:
     {
         auto r = getLocalBounds().toFloat();
         const float ear = (float) earFor (getWidth());
-        // the ears: the panel's own metal, holes on the rails at each end unit
-        g.setColour (juce::Colour (0xff2a2b2e));
-        g.fillRect (r);
-        g.setColour (juce::Colour (0xff3a3b3f));
+        // the ears: the panel's own metal (black powder coat), screwed to the rails
+        Pequod::hw::panel (g, r, juce::Colour (0xff2a2b2e));
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
         g.drawRect (r, 1.0f);
         const float u = (float) unitFor (getWidth());
         const int units = juce::jmax (1, juce::roundToInt (r.getHeight() / u));
@@ -105,8 +104,8 @@ public:
             for (int k : { 0, units - 1 })
             {
                 const float cy = r.getY() + u * ((float) k + 0.5f);
-                Pequod::drawScrew (g, { x, cy - half }, screw);
-                if (units == 1 || k == units - 1) Pequod::drawScrew (g, { x, cy + half }, screw);
+                Pequod::hw::screw (g, { x, cy - half }, screw, 0.4f + (float) k);
+                if (units == 1 || k == units - 1) Pequod::hw::screw (g, { x, cy + half }, screw, 1.3f + (float) k);
             }
 
         // the face: a blank plate where the panel doesn't reach
@@ -209,19 +208,29 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto r = getLocalBounds().toFloat().reduced ((float) earFor (getWidth()), 2.0f);
-        g.setColour (isMouseOver() ? Pequod::Colours::mustardLo.withAlpha (0.5f) : Pequod::Colours::well);
-        g.fillRoundedRectangle (r, 3.0f);
-        g.setColour (Pequod::Colours::mustardLo);
-        const float dash[] = { 5.0f, 4.0f };
-        juce::Path p;
-        p.addRoundedRectangle (r, 3.0f);
-        juce::Path d;
-        juce::PathStrokeType (1.2f).createDashedStroke (d, p, dash, 2);
-        g.fillPath (d);
-        g.setFont (Pequod::heading (14.0f));
-        g.setColour (Pequod::Colours::mustard);
-        g.drawText ("+  ADD EFFECT", r, juce::Justification::centred);
+        // the next space in the rack, closed with a blank plate (vented, as blanks are) - click to fill it
+        auto r = getLocalBounds().toFloat();
+        const float ear = (float) earFor (getWidth()), u = (float) unitFor (getWidth());
+        Pequod::hw::panel (g, r, juce::Colour (isMouseOver() ? 0xff303236 : 0xff26282b));
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.drawRect (r, 1.0f);
+        const float half = u * (float) (holeSpanMm / unitMm) * 0.5f, screw = juce::jmax (2.5f, u * 0.055f);
+        for (float x : { ear * 0.5f, r.getRight() - ear * 0.5f })
+        {
+            Pequod::hw::screw (g, { x, u * 0.5f - half }, screw, 0.9f);
+            Pequod::hw::screw (g, { x, u * 0.5f + half }, screw, 2.1f);
+        }
+        // the vent slots
+        auto vents = r.reduced (ear + u * 0.6f, u * 0.3f);
+        const float slotW = juce::jmax (3.0f, u * 0.07f), gap = slotW * 2.2f;
+        auto words = vents.withSizeKeepingCentre (juce::jmin (vents.getWidth(), 260.0f), vents.getHeight());
+        for (float x = vents.getX(); x + slotW < vents.getRight(); x += gap)
+        {
+            if (x + slotW > words.getX() - gap && x < words.getRight() + gap) continue;
+            Pequod::hw::slot (g, { x, vents.getY(), slotW, vents.getHeight() });
+        }
+        g.setFont (Pequod::heading (juce::jlimit (12.0f, 16.0f, u * 0.3f)));
+        Pequod::hw::engraved (g, "+  ADD EFFECT", words, isMouseOver() ? Pequod::Colours::mustard : Pequod::Colours::mustard.withAlpha (0.65f), juce::Justification::centred);
     }
     void mouseEnter (const juce::MouseEvent&) override { repaint(); }
     void mouseExit (const juce::MouseEvent&) override  { repaint(); }
@@ -235,6 +244,19 @@ private:
 };
 
 //==============================================================================
+void RackPanel::Units::paint (juce::Graphics& g)
+{
+    // inside the cabinet: dark, and the two rails running down it, holes and all
+    const int w = getWidth();
+    const float ear = (float) earFor (w), u = (float) unitFor (w);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0b0b0c), 0.0f, 0.0f, juce::Colour (0xff141416), (float) w * 0.5f, 0.0f, false));
+    g.fillAll();
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff141416), (float) w * 0.5f, 0.0f, juce::Colour (0xff0b0b0c), (float) w, 0.0f, false));
+    g.fillRect (getLocalBounds().withTrimmedLeft (w / 2));
+    for (float x : { 0.0f, (float) w - ear })
+        Pequod::hw::rail (g, { x, 0.0f, ear, (float) getHeight() }, u + (float) unitGap, 6.0f);
+}
+
 RackPanel::RackPanel (Rack& r) : rack (r)
 {
     addButton = std::make_unique<AddButton> (*this);
@@ -249,6 +271,7 @@ RackPanel::RackPanel (Rack& r) : rack (r)
     level.setRange (-24.0, 12.0, 0.1);
     level.setTextValueSuffix (" dB");
     level.setDoubleClickReturnValue (true, 0.0);
+    level.setTooltip ("The level into this chain (TRIM, on a track) or out of it (LEVEL, on a return or the mix). Double-click for 0 dB");
     level.onValueChange = [this]
     {
         auto& c = chain();
@@ -468,16 +491,24 @@ void RackPanel::paint (juce::Graphics& g)
 {
     g.fillAll (Pequod::Colours::bg);
 
-    // header: what this chain is
-    g.setColour (Pequod::Colours::panel);
-    g.fillRect (header);
-    g.setColour (Pequod::Colours::mustardLo);
-    g.fillRect (header.removeFromBottom (1));
-    auto h = header.reduced (14, 0);
+    // the rack's top panel: what this chain is, its level and keys - screwed on at the corners
+    const auto top = header.getUnion (toolbar).toFloat();
+    Pequod::hw::panel (g, top, juce::Colour (0xff2a2c30), 3.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.drawRoundedRectangle (top, 3.0f, 1.0f);
+    for (auto p : { top.getTopLeft() + juce::Point<float> (9.0f, 9.0f), top.getTopRight() + juce::Point<float> (-9.0f, 9.0f),
+                    top.getBottomLeft() + juce::Point<float> (9.0f, -9.0f), top.getBottomRight() + juce::Point<float> (-9.0f, -9.0f) })
+        Pequod::hw::screw (g, p, 3.5f, p.x * 0.01f);
+    // (a groove between the name plate and the controls)
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawHorizontalLine (header.getBottom() - 1, top.getX() + 22.0f, top.getRight() - 22.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.07f));
+    g.drawHorizontalLine (header.getBottom(), top.getX() + 22.0f, top.getRight() - 22.0f);
+    auto h = header.reduced (24, 0);
     g.setFont (Pequod::heading (20.0f));
-    g.setColour (Pequod::Colours::mustard);
     juce::String kind = shown.kind == ChainKind::track ? "TRACK " + juce::String (shown.index + 1) + "  " : juce::String();
-    g.drawText (kind + title.toUpperCase(), h.removeFromTop (header.getHeight() / 2 + 4).withTrimmedTop (6), juce::Justification::bottomLeft, true);
+    if (kind.trim().equalsIgnoreCase (title.trim())) kind = {};          // (an unnamed track: "TRACK 1", once)
+    Pequod::hw::engraved (g, kind + title.toUpperCase(), h.removeFromTop (header.getHeight() / 2 + 4).withTrimmedTop (6).toFloat(), Pequod::Colours::mustard, juce::Justification::bottomLeft);
 
     g.setFont (Pequod::body (12.0f));
     g.setColour (Pequod::Colours::textDim);
@@ -502,17 +533,21 @@ void RackPanel::paint (juce::Graphics& g)
         line << "     delay " << juce::String (1000.0 * lat / juce::jmax (1.0, rack.getSampleRate()), 1) << " ms";
     g.drawText (line, h.withTrimmedBottom (6), juce::Justification::topLeft, true);
 
-    // the rack: the cabinet behind the rails
-    g.setColour (Pequod::Colours::rail);
-    g.fillRect (unitView.getBounds());
+    // the cabinet: black steel sides either side of the rails
+    auto cab = unitView.getBounds().withTrimmedRight (unitView.getScrollBarThickness()).expanded (10, 4).toFloat();
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1e1f22), cab.getX(), 0.0f, juce::Colour (0xff0e0e0f), cab.getX() + 10.0f, 0.0f, false));
+    g.fillRoundedRectangle (cab, 4.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.08f));
+    g.drawRoundedRectangle (cab.reduced (0.5f), 4.0f, 1.0f);
 }
 
 void RackPanel::resized()
 {
     auto r = getLocalBounds();
     header = r.removeFromTop (58);
+    toolbar = r.removeFromTop (42);
 
-    auto bar = r.removeFromTop (40).reduced (10, 7);
+    auto bar = toolbar.reduced (24, 8);
     for (auto* b : { &clearButton, &pasteButton, &copyButton })
     {
         b->setBounds (bar.removeFromRight (64));
@@ -524,9 +559,9 @@ void RackPanel::resized()
     levelLabel.setBounds (bar.removeFromLeft (52));
     level.setBounds (bar.removeFromLeft (juce::jmin (300, bar.getWidth() - 10)));
 
-    r.removeFromTop (2);
+    r.removeFromTop (10);
     r = r.withTrimmedBottom (8);
-    const int rackW = juce::jmax (200, r.getWidth() - 16 - unitView.getScrollBarThickness());   // (the rack fills the width: no gaps either side)
+    const int rackW = juce::jmax (200, r.getWidth() - 28 - unitView.getScrollBarThickness());   // (the rack fills the width: no gaps either side)
     unitView.setBounds (r.withSizeKeepingCentre (rackW + unitView.getScrollBarThickness(), r.getHeight()).withY (r.getY()));
 
     const int w = rackW;

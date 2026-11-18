@@ -12,6 +12,7 @@
 #include "TrackList.h"
 #include "RackPanel.h"
 #include "Updater.h"
+#include "NearestTooltips.h"
 
 namespace emerson
 {
@@ -72,7 +73,7 @@ private:
     // UI
     TrackList trackList { rack, session };
     RackPanel rackPanel { rack };
-    juce::TooltipWindow tooltips { this, 600 };           // (without one, no tooltip ever shows)
+    NearestTooltips tooltips { this, 600 };           // (without one, no tooltip ever shows)
     partui::Key audioButton { "Settings", partui::Icon::settings }, openButton { "Open", partui::Icon::open },
                 saveButton { "Save", partui::Icon::save }, resetButton { "Reset", partui::Icon::reset };
     juce::TextButton updateButton { "UPDATE" }, toWhitmanButton { "TO WHITMAN" }, directButton { "DIRECT OUTS" };

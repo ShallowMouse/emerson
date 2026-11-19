@@ -25,9 +25,9 @@ namespace StudioPlugins
                                                     "Barker Bus|Listen Mic|Room Crush|Grit Comp" },
             { "Gates & levellers",        0x66661C, "Smart Gate|Expander|Evenhand" },
             { "Consoles & channel strips",0x46596B, "Valve Desk|TG Channel|TG Strip|V72 V76|Valve Mixer|Gold Star Desk|Neotek Channel|"
-                                                    "Plank Console|Ampex 351|Vocal Chain|Croon Vocal|Elfman Vocal|Orchestra Bus|Mystic Horns" },
+                                                    "Plank Console|Ampex 351|Vocal Chain|Croon Vocal|Elfman Vocal|Orchestra Bus|Mystic Horns|Polar Acoustic" },
             { "Tape",                     0x6B4A2E, "Tape Machine|Multitrack Tape|Twin-Track Tape|Studer 169|A800 Bus|Ampex 350|Analog Tape|"
-                                                    "Repro Head|Varispeed|Backwards|Tape Loop|Warmer" },
+                                                    "Repro Head|Varispeed|Tretow Varispeed|Backwards|Tape Loop|Warmer" },
             { "Echo & delay",             0x1E5A84, "Tape Echo|Three-Head Echo|Echorec|RE-301|Copicat|Chorus Echo|Plank Echo|Revox Loop|"
                                                     "Space Station|Ford Space Station|AMS 15-80S|Doubler|Quad Tracker" },
             { "Plates & springs",         0x1F5F63, "Plate 140|EMT Plate|Strawberry Plate|Spring Reverb|Heater Spring|Nonlin|Hall|Soaked" },
@@ -35,7 +35,7 @@ namespace StudioPlugins
                                                     "Albini Rooms|Antonoff Rooms|Black Box Rooms|blink Rooms|Boingo Rooms|Deltalab Rooms|"
                                                     "Finn Rooms|Ford Rooms|Hannett Rooms|Lanham Rooms|Meek Rooms|Monkeys Rooms|"
                                                     "Montserrat Rooms|Phoenix Rooms|Plank Rooms|Queen Rooms|Sing Sing Rooms|sombr Rooms|"
-                                                    "Spector Rooms|Stray Cats Rooms|Strokes Rooms|Townhouse Rooms" },
+                                                    "Spector Rooms|Stray Cats Rooms|Strokes Rooms|Townhouse Rooms|Synth Room" },
             { "Studio modulation",        0x5C2E7A, "Tape Flanger|Hand Phaser|Bi-Phase|Time Modulator|Dimension|CE-1 Chorus Ensemble|"
                                                     "Auto-Pan|Rotor|Wall of Sound" },
             { "Character",                0x8C2F62, "Phone Line|Car Radio|Transcription Disc|Cheap Speaker" },

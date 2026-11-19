@@ -476,7 +476,25 @@ void MainComponent::chainMenu (ChainRef r, juce::Point<int>)
         {
             juce::PopupMenu colours;
             const auto list = tk.palette();
-            for (int i = 0; i < list.size(); ++i) colours.addColouredItem (300 + i, "  ", list[i]);
+            // each colour as a swatch (a coloured item colours only its text: blank text showed nothing)
+            struct Swatch : juce::PopupMenu::CustomComponent
+            {
+                explicit Swatch (juce::Colour c) : juce::PopupMenu::CustomComponent (true), colour (c) {}
+                void getIdealSize (int& w, int& h) override { w = 150; h = 24; }
+                void paint (juce::Graphics& g) override
+                {
+                    auto rr = getLocalBounds().toFloat();
+                    if (isItemHighlighted()) { g.setColour (juce::Colours::white.withAlpha (0.12f)); g.fillRect (rr); }
+                    const auto sw = rr.reduced (24.0f, 4.0f).withTrimmedLeft (0.0f);
+                    g.setColour (colour);
+                    g.fillRoundedRectangle (sw, 3.0f);
+                    g.setColour (juce::Colours::black.withAlpha (0.5f));
+                    g.drawRoundedRectangle (sw, 3.0f, 1.0f);
+                }
+                juce::Colour colour;
+            };
+            for (int i = 0; i < list.size(); ++i)
+                colours.addCustomItem (300 + i, std::make_unique<Swatch> (list[i]), nullptr, "Colour " + juce::String (i + 1));
             colours.addItem (399, "None");
             m.addSubMenu ("Colour", colours);
         }

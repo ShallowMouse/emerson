@@ -11,6 +11,7 @@
 #include "RouteStatus.h"
 #include "TrackList.h"
 #include "RackPanel.h"
+#include "EffectsBrowser.h"
 #include "Updater.h"
 #include "NearestTooltips.h"
 
@@ -27,6 +28,7 @@ namespace emerson
     With OUTPUT on DIRECT OUTS the processed tracks go back into Hawthorne instead,
     which plays each one out of the interface output picked for it (to a desk). */
 class MainComponent : public juce::Component,
+                      public juce::DragAndDropContainer,
                       public juce::AudioIODeviceCallback,
                       private juce::ChangeListener,
                       private juce::Timer
@@ -73,6 +75,7 @@ private:
     // UI
     TrackList trackList { rack, session };
     RackPanel rackPanel { rack };
+    EffectsBrowser browser;
     NearestTooltips tooltips { this, 600 };           // (without one, no tooltip ever shows)
     partui::Key audioButton { "Settings", partui::Icon::settings }, openButton { "Open", partui::Icon::open },
                 saveButton { "Save", partui::Icon::save }, resetButton { "Reset", partui::Icon::reset };

@@ -155,6 +155,9 @@ MainComponent::MainComponent()
 
     rackPanel.createPlugin = [] (const juce::String& id, juce::String& err) { return Plugins::create (id, err); };
     rackPanel.onChanged = [this] { rackChanged(); };
+    browser.onAdd = [this] (const juce::String& id) { rackPanel.addEffect (id); };
+    browser.onScanVst3 = [this] { if (rackPanel.onScanVst3) rackPanel.onScanVst3(); };
+    addAndMakeVisible (browser);
     rackPanel.onScanVst3 = [this]
     {
         // the VST3 folder is always looked in; this adds another (where the PEQUOD collections were unzipped, say)
@@ -701,9 +704,10 @@ void MainComponent::scanVst3 (bool tell)
     juce::MouseCursor::hideWaitCursor();
     if (auto x = Plugins::vst3ListToXml()) settings().setValue ("vst3", x.get());
     settings().saveIfNeeded();
+    browser.refresh();
     if (tell)
         juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "EMERSON",
-            n > 0 ? "Found " + juce::String (n) + " PEQUOD studio VST3" + (n == 1 ? "" : "s") + " the built-in engine doesn't have. They're in + ADD EFFECT now."
+            n > 0 ? "Found " + juce::String (n) + " PEQUOD studio VST3" + (n == 1 ? "" : "s") + " the built-in engine doesn't have. They're in the EFFECTS list now."
                   : juce::String ("No other PEQUOD studio VST3s found (in the VST3 folder or the one you picked)."));
 }
 
@@ -910,6 +914,8 @@ void MainComponent::resized()
     left.removeFromTop (24);
     trackList.setBounds (left);
     r.removeFromLeft (8);
+    browser.setBounds (r.removeFromRight (juce::jlimit (220, 300, r.getWidth() / 4)).withTrimmedBottom (8));   // (the effects, as in IRVING)
+    r.removeFromRight (8);
     rackPanel.setBounds (r.withTrimmedRight (0));
 }
 

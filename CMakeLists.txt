@@ -105,6 +105,7 @@ if(EMERSON_BUILD_APP)
         Source/Main.cpp
         Source/MainComponent.cpp
         Source/RackPanel.cpp
+        Source/EffectsBrowser.cpp
         Source/TrackList.cpp
         Source/Plugins.cpp
         Source/RouteStatus.cpp

@@ -1,4 +1,5 @@
 #include "RackPanel.h"
+#include "EffectsBrowser.h"
 #include "Engine/RackState.h"
 #include "Plugins.h"
 #include "PequodPanel.h"
@@ -230,7 +231,7 @@ public:
             Pequod::hw::slot (g, { x, vents.getY(), slotW, vents.getHeight() });
         }
         g.setFont (Pequod::heading (juce::jlimit (12.0f, 16.0f, u * 0.3f)));
-        Pequod::hw::engraved (g, "+  ADD EFFECT", words, isMouseOver() ? Pequod::Colours::mustard : Pequod::Colours::mustard.withAlpha (0.65f), juce::Justification::centred);
+        Pequod::hw::engraved (g, "+  ADD EFFECT   OR DRAG ONE IN", words, isMouseOver() ? Pequod::Colours::mustard : Pequod::Colours::mustard.withAlpha (0.65f), juce::Justification::centred);
     }
     void mouseEnter (const juce::MouseEvent&) override { repaint(); }
     void mouseExit (const juce::MouseEvent&) override  { repaint(); }
@@ -539,6 +540,52 @@ void RackPanel::paint (juce::Graphics& g)
     g.fillRoundedRectangle (cab, 4.0f);
     g.setColour (juce::Colours::white.withAlpha (0.08f));
     g.drawRoundedRectangle (cab.reduced (0.5f), 4.0f, 1.0f);
+}
+
+bool RackPanel::isInterestedInDragSource (const SourceDetails& d)
+{
+    return d.description.toString().startsWith (EffectsBrowser::dragPrefix);
+}
+
+int RackPanel::dropIndexFor (juce::Point<int> p) const
+{
+    const auto inUnits = units.getLocalPoint (this, p);
+    int i = 0;
+    for (auto* u : unitRows)
+        if (inUnits.y > u->getBounds().getCentreY()) ++i;
+    return i;
+}
+
+int RackPanel::dropY() const
+{
+    // between unit dropAt - 1 and dropAt, in this component's coordinates
+    int y = unitRows.isEmpty() ? 6 : dropAt >= unitRows.size() ? unitRows.getLast()->getBottom() + unitGap / 2
+                                                                : unitRows[dropAt]->getY() - unitGap / 2;
+    return getLocalPoint (&units, juce::Point<int> (0, y)).y;
+}
+
+void RackPanel::itemDragMove (const SourceDetails& d)
+{
+    const int at = dropIndexFor (d.localPosition);
+    if (at != dropAt) { dropAt = at; repaint(); }
+}
+
+void RackPanel::itemDropped (const SourceDetails& d)
+{
+    const int at = dropIndexFor (d.localPosition);
+    dropAt = -1;
+    repaint();
+    addPlugin (d.description.toString().fromFirstOccurrenceOf (EffectsBrowser::dragPrefix, false, false), at);
+}
+
+void RackPanel::paintOverChildren (juce::Graphics& g)
+{
+    if (dropAt < 0) return;
+    // where it'll go: a lit bar across the rack
+    const auto view = unitView.getBounds();
+    const int y = juce::jlimit (view.getY(), view.getBottom() - 3, dropY());
+    g.setColour (Pequod::Colours::mustard);
+    g.fillRect (view.getX() + 10, y - 2, view.getWidth() - 20 - unitView.getScrollBarThickness(), 4);
 }
 
 void RackPanel::resized()

@@ -12,7 +12,8 @@ namespace emerson
 /** The right-hand side: the insert chain of whatever's picked in the track list,
     as a 19-inch rack. Top to bottom is the signal's order; every effect's own panel
     (drawn by the PEQUOD engine as in PEQUOD Host) is mounted in it, whole rack units high. */
-class RackPanel : public juce::Component
+class RackPanel : public juce::Component,
+                  public juce::DragAndDropTarget
 {
 public:
     explicit RackPanel (Rack&);
@@ -39,10 +40,24 @@ public:
     std::function<std::unique_ptr<juce::AudioProcessor> (const juce::String&, juce::String&)> createPlugin;
     std::function<void()> onScanVst3;                 // "Look for PEQUOD VST3s" in the add menu
 
+    /** Adds an effect at the bottom of the chain shown (the browser's double-click). */
+    void addEffect (const juce::String& identifier) { addPlugin (identifier, (int) unitRows.size()); }
+
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
+    // effects dragged in from the browser: dropped between the units, where they go in the chain
+    bool isInterestedInDragSource (const SourceDetails&) override;
+    void itemDragEnter (const SourceDetails& d) override { itemDragMove (d); }
+    void itemDragMove (const SourceDetails&) override;
+    void itemDragExit (const SourceDetails&) override { dropAt = -1; repaint(); }
+    void itemDropped (const SourceDetails&) override;
+
 private:
+    int dropAt = -1;                                   // where a dragged effect would go (-1: not dragging)
+    int dropIndexFor (juce::Point<int>) const;
+    int dropY() const;
     class Unit;
     class Units : public juce::Component { public: void paint (juce::Graphics&) override; };   // the rack's rails, behind the units
     class AddButton;

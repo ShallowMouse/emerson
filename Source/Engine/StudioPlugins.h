@@ -20,25 +20,26 @@ namespace StudioPlugins
     {
         static const std::vector<Group> list
         {
-            { "EQ",                       0x2C4A9A, "Studio EQ|Black Box EQ|Position 4" },
+            { "EQ",                       0x2C4A9A, "Studio EQ|Black Box EQ|Position 4|Pultec EQP-1A|Pultec MEQ-5|Lang PEQ-1|API 550A" },
             { "Compressors & limiters",   0xA87A1C, "RS124|Vari-Mu|FET Limiter|Black Box Limiter|Channel Dynamics|Level Loc|Opto Comp|"
-                                                    "Barker Bus|Listen Mic|Room Crush|Grit Comp" },
+                                                    "Barker Bus|Listen Mic|Room Crush|Grit Comp|Fairchild 670|LA-2A|LA-3A|dbx 160|SSL Bus Compressor|API 2500|Neve 33609|Distressor" },
             { "Gates & levellers",        0x66661C, "Smart Gate|Expander|Evenhand" },
             { "Consoles & channel strips",0x46596B, "Valve Desk|TG Channel|TG Strip|V72 V76|Valve Mixer|Gold Star Desk|Neotek Channel|"
-                                                    "Plank Console|Ampex 351|Vocal Chain|Croon Vocal|Elfman Vocal|Orchestra Bus|Mystic Horns|Polar Acoustic" },
+                                                    "Plank Console|Ampex 351|Vocal Chain|Croon Vocal|Elfman Vocal|Orchestra Bus|Mystic Horns|Polar Acoustic|Neve 1073|API 312" },
             { "Tape",                     0x6B4A2E, "Tape Machine|Multitrack Tape|Twin-Track Tape|Studer 169|A800 Bus|Ampex 350|Analog Tape|"
                                                     "Repro Head|Varispeed|Tretow Varispeed|Backwards|Tape Loop|Warmer" },
             { "Echo & delay",             0x1E5A84, "Tape Echo|Three-Head Echo|Echorec|RE-301|Copicat|Chorus Echo|Plank Echo|Revox Loop|"
-                                                    "Space Station|Ford Space Station|AMS 15-80S|Doubler|Quad Tracker" },
+                                                    "Space Station|Ford Space Station|AMS 15-80S|Doubler|Quad Tracker|Echoplex EP-3|H3000" },
             { "Plates & springs",         0x1F5F63, "Plate 140|EMT Plate|Strawberry Plate|Spring Reverb|Heater Spring|Nonlin|Hall|Soaked" },
+            { "Digital reverbs",          0x2E3F7A, "Lexicon 224|Lexicon 480L|PCM70|EMT 250|AMS RMX16|Yamaha REV7|Yamaha SPX90" },
             { "Rooms & chambers",         0x1F5E4A, "Echo Chamber|Studio Spaces|Gold Star Chamber|Hollywood Chamber|Water Tank|Floyd Spaces|"
                                                     "Albini Rooms|Antonoff Rooms|Black Box Rooms|blink Rooms|Boingo Rooms|Deltalab Rooms|"
                                                     "Finn Rooms|Ford Rooms|Hannett Rooms|Lanham Rooms|Meek Rooms|Monkeys Rooms|"
                                                     "Montserrat Rooms|Phoenix Rooms|Plank Rooms|Queen Rooms|Sing Sing Rooms|sombr Rooms|"
                                                     "Spector Rooms|Stray Cats Rooms|Strokes Rooms|Townhouse Rooms|Synth Room" },
             { "Studio modulation",        0x5C2E7A, "Tape Flanger|Hand Phaser|Bi-Phase|Time Modulator|Dimension|CE-1 Chorus Ensemble|"
-                                                    "Auto-Pan|Rotor|Wall of Sound" },
-            { "Character",                0x8C2F62, "Phone Line|Car Radio|Transcription Disc|Cheap Speaker" },
+                                                    "Auto-Pan|Rotor|Wall of Sound|Flanger/Doubler" },
+            { "Character",                0x8C2F62, "Phone Line|Car Radio|Transcription Disc|Cheap Speaker|Aural Exciter|Sonic Maximizer" },
         };
         return list;
     }

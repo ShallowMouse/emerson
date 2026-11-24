@@ -105,8 +105,8 @@ public:
             for (int k : { 0, units - 1 })
             {
                 const float cy = r.getY() + u * ((float) k + 0.5f);
-                Pequod::hw::screw (g, { x, cy - half }, screw, 0.4f + (float) k);
-                if (units == 1 || k == units - 1) Pequod::hw::screw (g, { x, cy + half }, screw, 1.3f + (float) k);
+                Pequod::hw::screw (g, { x, cy - half }, screw, Pequod::hw::screwSeed (this) + 0.4f + (float) k);
+                if (units == 1 || k == units - 1) Pequod::hw::screw (g, { x, cy + half }, screw, Pequod::hw::screwSeed (this) + 1.3f + (float) k);
             }
 
         // the face: a blank plate where the panel doesn't reach
@@ -218,8 +218,8 @@ public:
         const float half = u * (float) (holeSpanMm / unitMm) * 0.5f, screw = juce::jmax (2.5f, u * 0.055f);
         for (float x : { ear * 0.5f, r.getRight() - ear * 0.5f })
         {
-            Pequod::hw::screw (g, { x, u * 0.5f - half }, screw, 0.9f);
-            Pequod::hw::screw (g, { x, u * 0.5f + half }, screw, 2.1f);
+            Pequod::hw::screw (g, { x, u * 0.5f - half }, screw, Pequod::hw::screwSeed (this) + 0.9f);
+            Pequod::hw::screw (g, { x, u * 0.5f + half }, screw, Pequod::hw::screwSeed (this) + 2.1f);
         }
         // the vent slots
         auto vents = r.reduced (ear + u * 0.6f, u * 0.3f);

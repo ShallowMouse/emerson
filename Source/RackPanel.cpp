@@ -375,8 +375,10 @@ void RackPanel::showAddMenu (int insertAt)
     flush();
     if (list.empty())
         m.addItem (-1, "No PEQUOD studio plugins in this build", false);
+   #if JUCE_PLUGINHOST_VST3
     m.addSeparator();
     m.addItem (-2, "Look for PEQUOD VST3s (Pink Floyd, Joe Meek, Albini...)");
+   #endif
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (addButton.get()).withMinimumWidth (260),
                      [this, byId, insertAt] (int r)

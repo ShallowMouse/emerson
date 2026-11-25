@@ -117,6 +117,17 @@ std::unique_ptr<juce::AudioProcessor> create (const juce::String& identifier, ju
     if (identifier.startsWith (vst3Prefix))
     {
         const auto id = identifier.substring ((int) std::strlen (vst3Prefix));
+        // (saved with a VST3 copy of a PEQUOD plugin: everything is built in now, so it runs on the engine)
+        if (auto d = vst3List().getTypeForIdentifierString (id))
+            if (auto* i = PequodNative::nativeFor (*d))
+                return std::make_unique<PequodNative::Instance> (*i);
+        {
+            // "VST3-<name>-<hex>-<hex>"
+            auto name = id.fromFirstOccurrenceOf ("-", false, false).upToLastOccurrenceOf ("-", false, false).upToLastOccurrenceOf ("-", false, false);
+            for (auto& i : PequodNative::all())
+                if (! i.instrument && i.name.equalsIgnoreCase (name))
+                    return std::make_unique<PequodNative::Instance> (i);
+        }
         if (auto d = vst3List().getTypeForIdentifierString (id))
         {
             juce::String err;

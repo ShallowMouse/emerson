@@ -19,7 +19,9 @@ EffectsBrowser::EffectsBrowser()
     scanButton.setTooltip ("Look for PEQUOD VST3s the built-in engine doesn't have (Pink Floyd, Joe Meek, Albini...)");
     scanButton.onClick = [this] { if (onScanVst3) onScanVst3(); };
     scanButton.setColour (juce::TextButton::buttonColourId, Pequod::Colours::panel);
+   #if JUCE_PLUGINHOST_VST3
     addAndMakeVisible (scanButton);
+   #endif
 
     search.setTextToShowWhenEmpty ("Search...", Pequod::Colours::textDim);
     search.setFont (Pequod::body (14.0f));
@@ -192,8 +194,11 @@ void EffectsBrowser::resized()
     byFunction.setBounds (groupRow.removeFromLeft (groupRow.getWidth() / 2).reduced (1, 0));
     byCollection.setBounds (groupRow.reduced (1, 0));
     r.removeFromTop (6);
-    scanButton.setBounds (r.removeFromBottom (26));
-    r.removeFromBottom (6);
+    if (scanButton.isVisible())
+    {
+        scanButton.setBounds (r.removeFromBottom (26));
+        r.removeFromBottom (6);
+    }
     list.setBounds (r);
 }
 

@@ -171,8 +171,10 @@ MainComponent::MainComponent()
             scanVst3 (true);
         });
     };
+   #if JUCE_PLUGINHOST_VST3
     if (! settings().containsKey ("vst3"))
         juce::Timer::callAfterDelay (800, [safe = juce::Component::SafePointer<MainComponent> (this)] { if (safe != nullptr) safe->scanVst3 (false); });
+   #endif
     addAndMakeVisible (rackPanel);
 
     setSize (1400, 880);
@@ -650,11 +652,13 @@ void MainComponent::showHostedSettings()
     {
         explicit Panel (MainComponent& m) : owner (m)
         {
+           #if JUCE_PLUGINHOST_VST3
             for (auto* b : { &choose, &again })
             {
                 b->setColour (juce::TextButton::buttonColourId, Pequod::Colours::panelHi);
                 addAndMakeVisible (b);
             }
+           #endif
             choose.onClick = [this]
             {
                 if (owner.rackPanel.onScanVst3) owner.rackPanel.onScanVst3();
@@ -670,6 +674,14 @@ void MainComponent::showHostedSettings()
             auto r = getLocalBounds().reduced (18, 14);
             g.setFont (Pequod::heading (13.0f));
             g.setColour (partui::accent ("emerson"));
+           #if ! JUCE_PLUGINHOST_VST3
+            g.drawText ("EFFECTS", r.removeFromTop (20), juce::Justification::centredLeft);
+            g.setFont (Pequod::body (12.5f));
+            g.setColour (Pequod::Colours::textDim);
+            g.drawFittedText ("Every effect is built in: they're all in + ADD EFFECT.", r.removeFromTop (36), juce::Justification::topLeft, 2);
+            g.drawText ("The audio device is MELVILLE's: INTERFACE on its bar.", getLocalBounds().reduced (18, 12).removeFromBottom (18), juce::Justification::centredLeft);
+            return;
+           #endif
             g.drawText ("PEQUOD VST3s", r.removeFromTop (20), juce::Justification::centredLeft);
             g.setFont (Pequod::body (12.5f));
             g.setColour (Pequod::Colours::textDim);
